@@ -1,3 +1,6 @@
+Schematic needs updating!
+-> 5V input needs connecting to output of LM2596 
+
 # 🤖 ESP32 Line Sensing Robot
 
 A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor control via L298N, 3 IR line sensors, 3 ultrasonic distance sensors, and an LM2596S-ADJ buck converter powered by a 2S LiPo (8.8V). Controlled via a custom **Android MQTT app** built in Android Studio, with full telemetry monitoring and dual control modes (accelerometer tilt + WASD buttons).
