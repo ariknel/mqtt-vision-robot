@@ -379,7 +379,8 @@ With fixed resistors as base, a trimpot wiper failure cannot cause a catastrophi
 
 ### Full Schematic — Rev 2
 
-![Full Schematic](schematic_full.png)
+![Full Schematic]<img width="2339" height="1654" alt="schematic_full" src="https://github.com/user-attachments/assets/08c81a5e-7112-4956-befe-5aec7e011b44" />
+
 
 *ESP32-DEVKITC + LM2596S-ADJ power section + L298N motor driver + JST-A ultrasonic connector + J5 IR sensor connector*
 
