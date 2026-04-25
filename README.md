@@ -373,3 +373,29 @@ Fixed resistors as base prevent catastrophic output spike if trimpot wiper fails
 | GPIO35 | — | ECHO Left | Input | ADC1, input-only, JST-A |
 | GPIO36 | — | ECHO Center | Input | ADC1, input-only, JST-A |
 | GPIO39 | — | ECHO Right | Input | ADC1, input-only, JST-A |
+
+---
+
+## Schematic
+
+### Full Schematic — Rev 2
+
+![Full Schematic](schematic_full.png)
+
+*ESP32-DEVKITC + LM2596S-ADJ power section + L298N motor driver + JST-A ultrasonic connector + J5 IR sensor connector*
+
+---
+
+### LM2596S-ADJ — Buck Converter & Battery Monitor
+
+![LM2596 Section](schematic_lm2596.png)
+
+*8.8V input via J3 JST (2-pin). R1/R2 voltage divider for battery ADC on GPIO34. LM2596S-ADJ with SS34 Schottky diode D1, inductor L, 220µF output cap, and RV1 trimpot setting 5V output via FB pin.*
+
+---
+
+### L298N — Motor Driver
+
+![L298N Section](schematic_l298n.png)
+
+*L298N dual H-bridge with 4 freewheeling Schottky diodes per output pair. Motor A: IN1 (GPIO13), IN2 (GPIO14), EnA (GPIO21). Motor B: IN3 (GPIO27), IN4 (GPIO26), EnB (GPIO25). Outputs to J1 and J2 screw terminals.*
