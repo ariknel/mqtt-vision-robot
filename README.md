@@ -28,7 +28,7 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 | Motor Driver | L298N | Repurposed from L298N module — correct Schottky diodes confirmed ✅ |
 | Buck Converter | LM2596S-ADJ | 8.8V → 5V, set via RV1 trimpot. Diode: SS34 Schottky ✅ |
 | Power Input | 2S LiPo | 8.8V via JST J3 (2-pin) connector |
-| Line Sensors | IR Sensor x3 | Digital output, 3.3V — via J5 (10-pin screw terminal) |
+| Line Sensors | IR Sensor x3 | Digital output, 3.3V — via JST-B (10-pin) |
 | Distance Sensors | HC-SR04 x3 | 2021+ version — 3.3V compatible, no voltage divider needed ✅ |
 | Control App | Android (Android Studio) | MQTT-based, accelerometer + WASD control |
 
@@ -56,7 +56,7 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 |----------|-----------------|------|-------|
 | Battery ADC | Pin 5 | GPIO34 | R1/R2 voltage divider from J3 Pin 2 (8.8V). ADC1 — WiFi safe. Input-only ✅ |
 
-### IR Line Sensors — J5 (10-pin screw terminal)
+### IR Line Sensors — JST-B (10-pin)
 
 | Sensor | GPIO | Type | Notes |
 |--------|------|------|-------|
@@ -100,7 +100,7 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 | 9 | — spare — | — | |
 | 10 | — spare — | — | |
 
-### J5 — IR Line Sensors (10-pin screw terminal)
+### JST-B — IR Line Sensors (10-pin)
 
 | Pin | Signal | GPIO | Notes |
 |-----|--------|------|-------|
@@ -136,7 +136,7 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
    ESP32 DEVKITC VIN → onboard LDO → 3.3V rail
                                           │
                                           ├─── HC-SR04 VCC 5V (via JST-A Pin 1)
-                                          └─── IR sensors VCC (via J5 Pin 1)
+                                          └─── IR sensors VCC (via JST-B Pin 1)
 ```
 
 - LM2596S-ADJ output set by trimpot RV1
@@ -154,7 +154,7 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 
 - All GPIOs on ADC1 — WiFi/MQTT always active ✅
 - No level shifting needed on signal lines
-- Connected via J5 screw terminal
+- Connected via JST-B
 
 **MQTT telemetry:** `robot/telemetry/ir`
 ```json
@@ -298,7 +298,7 @@ void publishTelemetry() {
 
 ### Rev 2 — 25 April 2026
 - JST-A (10-pin) added for 3x HC-SR04 ultrasonic sensors
-- J5 (10-pin screw terminal) added for 3x IR line sensors
+- JST-B (10-pin) added for 3x IR line sensors
 - HC-SR04 confirmed as 2021+ version — no voltage dividers needed on ECHO lines ✅
 - Full GPIO assignments finalised and conflict-checked
 - Battery ADC confirmed on GPIO34 (ADC1, input-only)
@@ -348,6 +348,7 @@ With fixed resistors as base, a trimpot wiper failure cannot cause a catastrophi
 | 25 Apr 2026 | HC-SR04 confirmed as 2021+ version — voltage dividers removed from design. |
 | 25 Apr 2026 | Final GPIO assignments locked in for all motors, sensors, and battery ADC. |
 | 25 Apr 2026 | LM2596 D1 = SS34 Schottky confirmed from schematic. |
+| 25 Apr 2026 | Schematic Rev 2 exported — JST-A and JST-B fully connected, all sensor GPIO traces complete. |
 
 ---
 
@@ -357,7 +358,7 @@ With fixed resistors as base, a trimpot wiper failure cannot cause a catastrophi
 |------|-----------|----------|------|-------|
 | GPIO13 | Pin 15 | Motor A IN1 | Output | L298N |
 | GPIO14 | Pin 12 | Motor A IN2 | Output | L298N |
-| GPIO15 | — | IR Right | Input | J5 screw terminal |
+| GPIO15 | — | IR Right | Input | JST-B |
 | GPIO18 | — | TRIG Right | Output | JST-A ultrasonic |
 | GPIO21 | Pin 33 | EnA Motor A | PWM Output | L298N |
 | GPIO22 | — | TRIG Left | Output | JST-A ultrasonic |
@@ -365,8 +366,8 @@ With fixed resistors as base, a trimpot wiper failure cannot cause a catastrophi
 | GPIO25 | Pin 9 | EnB Motor B | PWM Output | L298N |
 | GPIO26 | Pin 10 | Motor B IN4 | Output | L298N |
 | GPIO27 | Pin 11 | Motor B IN3 | Output | L298N |
-| GPIO32 | — | IR Left | Input | ADC1, J5 screw terminal |
-| GPIO33 | — | IR Center | Input | ADC1, J5 screw terminal |
+| GPIO32 | — | IR Left | Input | ADC1, JST-B |
+| GPIO33 | — | IR Center | Input | ADC1, JST-B |
 | GPIO34 | Pin 5 | Battery ADC | Input | ADC1, input-only, R1/R2 divider |
 | GPIO35 | — | ECHO Left | Input | ADC1, input-only, JST-A |
 | GPIO36 | — | ECHO Center | Input | ADC1, input-only, JST-A |
