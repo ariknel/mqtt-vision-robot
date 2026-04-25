@@ -8,6 +8,7 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 
 - [Hardware Overview](#hardware-overview)
 - [Pinout Reference](#pinout-reference)
+- [JST Connector Wiring](#jst-connector-wiring)
 - [Power System](#power-system)
 - [Sensors](#sensors)
 - [Motor Control](#motor-control)
@@ -24,13 +25,14 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 |-----------|------|-------|
 | MCU | ESP32-DEVKITC | Dual-core, WiFi/BT capable |
 | Motor Driver | L298N | Repurposed from L298N module — correct Schottky diodes included ✅ |
-| Buck Converter | LM2596S-ADJ | 8.8V → 5V, set via RV1 trimpot |
-| Power Input | 2S LiPo | 8.8V via JST J3 connector |
-| Line Sensors | IR Sensor x3 | ⏳ To be added to schematic |
-| Distance Sensors | HC-SR04 x3 | ⏳ To be added to schematic |
+| Buck Converter | LM2596S-ADJ | 8.8V → 5V, set via RV1 trimpot. Diode: SS34 Schottky ✅ |
+| Power Input | 2S LiPo | 8.8V via JST J3 (2-pin) connector |
+| Line Sensors | IR Sensor x3 | Digital output, 3.3V — via J5 (10-pin screw terminal) |
+| Distance Sensors | HC-SR04 x3 | 5V, digital — via JST-A (10-pin) |
 | Control App | Android (Android Studio) | MQTT-based, accelerometer + WASD control |
 
-> ℹ️ **L298N Diodes:** Components are repurposed directly from an L298N module board. The module uses correct fast-recovery/Schottky freewheeling diodes by default — no diode substitution needed.
+> ℹ️ **L298N Diodes:** Components repurposed from L298N module board — correct Schottky freewheeling diodes confirmed, no substitution needed.
+> ℹ️ **LM2596 Diode:** D1 = SS34 Schottky — correct fast-recovery type confirmed ✅
 
 ---
 
@@ -38,42 +40,40 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 
 ### Motor Driver — L298N
 
-| L298N Pin | ESP32 GPIO | Type | Notes |
-|-----------|-----------|------|-------|
-| ENA | GPIO33 | PWM Output | Motor A speed control — moved from GPIO12 (strapping pin conflict) |
-| IN1 | GPIO13 | Digital Output | Motor A direction |
-| IN2 | GPIO14 | Digital Output | Motor A direction |
-| ENB | GPIO25 | PWM Output | Motor B speed control |
-| IN3 | GPIO27 | Digital Output | Motor B direction |
-| IN4 | GPIO26 | Digital Output | Motor B direction |
-
-### IR Line Sensors — ⏳ To Be Wired
-
-| Sensor | ESP32 GPIO | Type | Notes |
-|--------|-----------|------|-------|
-| IR Left | TBD | Digital/Analog Input | Use ADC1 pin — ADC2 disabled when WiFi active |
-| IR Center | TBD | Digital/Analog Input | Use ADC1 pin — ADC2 disabled when WiFi active |
-| IR Right | TBD | Digital/Analog Input | Use ADC1 pin — ADC2 disabled when WiFi active |
-
-> ⚠️ **ADC2 Warning:** GPIOs 0, 2, 4, 12–15, 25–27 use ADC2 which is **disabled when WiFi is active**. Since MQTT requires WiFi, use **ADC1 pins (GPIO32–39)** for all analog IR readings.
-
-### Ultrasonic Sensors — ⏳ To Be Wired
-
-| Sensor | TRIG GPIO | ECHO GPIO | Notes |
-|--------|----------|----------|-------|
-| Ultrasonic Left | TBD | TBD | ECHO needs 3.3V logic — use voltage divider on ECHO pin |
-| Ultrasonic Center | TBD | TBD | ECHO needs 3.3V logic — use voltage divider on ECHO pin |
-| Ultrasonic Right | TBD | TBD | ECHO needs 3.3V logic — use voltage divider on ECHO pin |
-
-> ⚠️ **Logic Level Warning:** HC-SR04 ECHO pin outputs 5V. ESP32 GPIO is **3.3V max**. Always use a voltage divider (1kΩ / 2kΩ) or logic level shifter on each ECHO line.
+| L298N Pin | ESP32 Header Pin | GPIO | Type | Notes |
+|-----------|-----------------|------|------|-------|
+| IN1 | Pin 15 | GPIO13 | Digital Output | Motor A direction |
+| IN2 | Pin 12 | GPIO14 | Digital Output | Motor A direction |
+| EnA | Pin 33 | GPIO21 | PWM Output | Motor A speed control |
+| IN3 | Pin 11 | GPIO27 | Digital Output | Motor B direction |
+| IN4 | Pin 10 | GPIO26 | Digital Output | Motor B direction |
+| EnB | Pin 9 | GPIO25 | PWM Output | Motor B speed control |
 
 ### Battery Monitor
 
-| Function | ESP32 GPIO | Notes |
-|----------|-----------|-------|
-| Battery ADC | TBD (ADC1) | R1/R2 voltage divider on J3 Pin 2 (8.8V) |
+| Function | ESP32 Header Pin | GPIO | Notes |
+|----------|-----------------|------|-------|
+| Battery ADC | Pin 5 | GPIO34 | R1/R2 voltage divider from J3 Pin 2 (8.8V). ADC1 — WiFi safe. Input-only pin ✅ |
 
-### JST Power Connector — J3
+### IR Line Sensors — J5 (10-pin screw terminal)
+
+| Sensor | GPIO | Type | Notes |
+|--------|------|------|-------|
+| IR Left | GPIO32 | Digital Input | ADC1 — WiFi/MQTT safe ✅ |
+| IR Center | GPIO33 | Digital Input | ADC1 — WiFi/MQTT safe ✅ |
+| IR Right | GPIO15 | Digital Input | Safe for digital input. Mild strapping pin — no issue as IR sensors default LOW at boot ✅ |
+
+### Ultrasonic Sensors HC-SR04 — JST-A (10-pin)
+
+| Sensor | TRIG GPIO | ECHO GPIO | Notes |
+|--------|----------|----------|-------|
+| Ultrasonic Left | GPIO22 | GPIO35 | ECHO: 1kΩ/2kΩ divider required. GPIO35 input-only ADC1 ✅ |
+| Ultrasonic Center | GPIO23 | GPIO36 | ECHO: 1kΩ/2kΩ divider required. GPIO36 input-only ADC1 ✅ |
+| Ultrasonic Right | GPIO18 | GPIO39 | ECHO: 1kΩ/2kΩ divider required. GPIO39 input-only ADC1 ✅ |
+
+> ⚠️ HC-SR04 ECHO outputs 5V. ESP32 GPIO max is 3.3V. Voltage divider required on every ECHO line.
+
+### JST Power Connector — J3 (2-pin JST)
 
 | Pin | Signal |
 |-----|--------|
@@ -82,65 +82,117 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 
 ---
 
+## JST Connector Wiring
+
+### JST-A — Ultrasonic Sensors HC-SR04 (10-pin JST)
+
+| Pin | Signal | GPIO | Notes |
+|-----|--------|------|-------|
+| 1 | 5V shared | — | 5V rail |
+| 2 | GND shared | GND | |
+| 3 | TRIG Left | GPIO22 | Digital output |
+| 4 | ECHO Left | GPIO35 | ⚡ Voltage divider required |
+| 5 | TRIG Center | GPIO23 | Digital output |
+| 6 | ECHO Center | GPIO36 | ⚡ Voltage divider required |
+| 7 | TRIG Right | GPIO18 | Digital output |
+| 8 | ECHO Right | GPIO39 | ⚡ Voltage divider required |
+| 9 | — spare — | — | |
+| 10 | — spare — | — | |
+
+**ECHO voltage divider (per sensor, on PCB):**
+```
+HC-SR04 ECHO (5V) ── 1kΩ ──┬── GPIO (3.3V max)
+                             │
+                            2kΩ
+                             │
+                            GND
+```
+
+### J5 — IR Line Sensors (10-pin screw terminal)
+
+| Pin | Signal | GPIO | Notes |
+|-----|--------|------|-------|
+| 1 | 3.3V shared | — | 3V3 rail |
+| 2 | GND shared | GND | |
+| 3 | IR Left | GPIO32 | Digital input, ADC1 |
+| 4 | IR Center | GPIO33 | Digital input, ADC1 |
+| 5 | IR Right | GPIO15 | Digital input |
+| 6–10 | — spare — | — | Room to expand |
+
+---
+
 ## Power System
 
 ```
 [2S LiPo 8.8V]
       │
-     J3 (JST)
+    J3 JST (2-pin)
       │
-      ├──────────────────────────── L298N VS pin (motor supply, 8.8V)
+      ├─── R1/R2 voltage divider ─── GPIO34 (battery monitor ADC)
+      │
+      ├─── 220uF1 bulk cap (input filter)
+      │
+      ├─── L298N VS pin (motor supply, 8.8V direct)
       │
    LM2596S-ADJ
-   (RV1 trimpot sets output)
+   D1: SS34 Schottky
+   RV1 trimpot → FB pin (sets 5V output)
+   Output: 220uF4 cap
       │
      5V rail
+      ├─── HC-SR04 VCC (via JST-A Pin 1)
       │
-      └──────────────────────────── ESP32-DEVKITC VIN
+   ESP32 DEVKITC VIN → onboard LDO → 3.3V
+                                        │
+                                        └─── IR sensors VCC (via J5 Pin 1)
 ```
 
-- **LM2596S-ADJ** output voltage set by trimpot **RV1**
-- Output capacitor: 220µF (low-ESR recommended)
-- Input capacitor: 220µF bulk + 100nF ceramic (planned)
-- Freewheeling diodes on all L298N outputs (correct type confirmed — repurposed from module)
+- LM2596S-ADJ output set by trimpot RV1
+- SS34 Schottky diode D1 confirmed ✅
+- Input cap: 220µF bulk (100nF ceramic parallel planned)
+- Output cap: 220µF (low-ESR recommended)
 
 ---
 
 ## Sensors
 
 ### IR Line Sensors (x3)
-> ⏳ Not yet added to schematic
 
-3 IR reflectance sensors positioned underneath the robot chassis for line detection. Output digital (HIGH/LOW) or analog depending on module.
+3 IR reflectance sensors under the chassis for line detection. Digital output (3.3V modules).
 
-**GPIO allocation notes:**
-- WiFi must stay active for MQTT — use **ADC1 only** (GPIO32–39) for analog IR
-- GPIO34, 35, 36, 39 are **input-only** — suitable for sensor inputs
+- All GPIOs on ADC1 — WiFi/MQTT always active ✅
+- No level shifting needed on signal lines
+- Connected via J5 screw terminal
 
-**MQTT telemetry:** IR sensor states published to broker so the Android app can monitor line detection in real time.
+**MQTT telemetry:** `robot/telemetry/ir`
+```json
+{"left": 0, "center": 1, "right": 0}
+```
 
 ### Ultrasonic Sensors HC-SR04 (x3)
-> ⏳ Not yet added to schematic
 
-3 ultrasonic sensors for obstacle detection (left, center, right). Requires 6 GPIOs total (3x TRIG + 3x ECHO).
+3 ultrasonic sensors for obstacle detection (left, center, right).
 
-**Required per sensor:**
-- TRIG: any digital output GPIO
-- ECHO: **must be level-shifted to 3.3V** (HC-SR04 outputs 5V)
-  - Voltage divider: 1kΩ (top) + 2kΩ (bottom), tap midpoint to GPIO
+- Powered from 5V rail
+- TRIG: 3.3V ESP32 output is sufficient to trigger HC-SR04 ✅
+- ECHO: **must be divided to 3.3V** — 1kΩ/2kΩ divider per sensor on PCB
+- ECHO GPIOs (35/36/39) are input-only — correct for ECHO signals ✅
 
-**MQTT telemetry:** Distance readings from all 3 sensors streamed to the Android app for live obstacle monitoring.
+**MQTT telemetry:** `robot/telemetry/ultrasonic`
+```json
+{"left": 24, "center": 8, "right": 31}
+```
 
 ---
 
 ## Motor Control
 
-Dual H-bridge via **L298N**. Each motor channel independently controllable for direction (digital) and speed (PWM).
+Dual H-bridge via L298N. Speed via PWM on EnA/EnB, direction via IN1–IN4.
 
-| Channel | Enable (PWM) | Dir A | Dir B |
-|---------|-------------|-------|-------|
-| Motor A | GPIO33 | GPIO13 | GPIO14 |
-| Motor B | GPIO25 | GPIO27 | GPIO26 |
+| Channel | Enable (PWM) | Dir Pin A | Dir Pin B |
+|---------|-------------|-----------|-----------|
+| Motor A | GPIO21 (EnA) | GPIO13 (IN1) | GPIO14 (IN2) |
+| Motor B | GPIO25 (EnB) | GPIO27 (IN3) | GPIO26 (IN4) |
 
 **Direction logic:**
 
@@ -155,133 +207,78 @@ Dual H-bridge via **L298N**. Each motor channel independently controllable for d
 
 ## Android App & MQTT Control
 
-The robot is controlled via a **custom Android app** built in Android Studio. All communication runs over **MQTT**, with the ESP32 connecting to a broker hosted directly inside the APK over the local WiFi network.
+Custom Android app (Android Studio) communicates with the ESP32 over MQTT. The broker runs **embedded inside the APK** — no external server needed.
 
----
-
-### Architecture Overview
+### Architecture
 
 ```
 [Android App]
-      │
-      ├── Embedded MQTT Broker (runs inside APK)
-      │         │
-      │         │  port 1883 — local WiFi
-      │         │
-      └── MQTT Client (subscribes to telemetry, publishes commands)
+      ├── Embedded MQTT Broker (Moquette / HiveMQ, port 1883)
+      └── MQTT Client
                 │
-                │  WiFi / Local Network
+           Local WiFi
                 │
-         [ESP32-DEVKITC]
+        [ESP32-DEVKITC]
                 │
          Motors / Sensors
 ```
-
-> The MQTT broker runs **embedded inside the Android APK** — no external server or cloud service required. The phone acts as both the broker host and the control client. The ESP32 connects to the broker using the phone's local IP address over shared WiFi.
-
----
-
-### MQTT Broker (Embedded in APK)
-
-A lightweight MQTT broker (e.g. **Moquette** or **HiveMQ Embedded**) is bundled and started automatically when the app launches. This gives a fully self-contained system — bring the phone, bring the robot, connect to the same WiFi and it works.
-
-```java
-// Example: starting Moquette embedded broker in Android
-MoquetteServer broker = new MoquetteServer();
-broker.startServer(); // Listens on port 1883
-```
-
-The ESP32 firmware points to the phone's local IP as its MQTT server address.
-
----
 
 ### MQTT Topic Structure
 
 | Topic | Direction | Description |
 |-------|-----------|-------------|
-| `robot/control/move` | App → ESP32 | Movement command: `forward` / `back` / `left` / `right` / `stop` |
-| `robot/control/speed` | App → ESP32 | PWM speed value (0–255) |
+| `robot/control/move` | App → ESP32 | `forward` / `back` / `left` / `right` / `stop` |
+| `robot/control/speed` | App → ESP32 | PWM value 0–255 |
 | `robot/control/mode` | App → ESP32 | `manual` or `line_follow` |
-| `robot/telemetry/ir` | ESP32 → App | IR sensor states — JSON: `{left, center, right}` |
-| `robot/telemetry/ultrasonic` | ESP32 → App | Distance readings — JSON: `{left, center, right}` in cm |
-| `robot/telemetry/battery` | ESP32 → App | Battery voltage in V (float) |
-| `robot/telemetry/speed` | ESP32 → App | Current PWM values for Motor A and B |
-
----
+| `robot/telemetry/ir` | ESP32 → App | IR states JSON |
+| `robot/telemetry/ultrasonic` | ESP32 → App | Distances JSON (cm) |
+| `robot/telemetry/battery` | ESP32 → App | Voltage float (V) |
+| `robot/telemetry/speed` | ESP32 → App | PWM values both motors |
 
 ### Control Modes
 
-The app supports **two manual control modes**, toggled by a single button in the UI. The button label updates to reflect the active mode. Switching modes registers/unregisters the accelerometer listener to preserve battery.
+Toggled by a single button in the app. Accelerometer listener registered/unregistered on toggle to save battery.
 
-#### Mode 1 — Accelerometer (Tilt Control)
-Phone tilt maps directly to robot movement commands:
+**Mode 1 — Accelerometer tilt:**
 
-| Tilt Direction | Robot Action |
-|----------------|-------------|
+| Tilt | Action |
+|------|--------|
 | Forward | Move forward |
 | Backward | Reverse |
 | Left | Steer left |
 | Right | Steer right |
-| Flat/neutral | Stop |
+| Flat | Stop |
 
-- Sensitivity adjustable via in-app slider
-- Accelerometer data read from Android `SensorManager`
-- Commands published continuously while tilted past threshold
-
-#### Mode 2 — WASD Button Control
-On-screen directional pad:
-
+**Mode 2 — WASD buttons:**
 ```
-        [ W ]
-   [ A ][ S ][ D ]
-        [STP]
+     [ W ]
+[ A ][ S ][ D ]
+     [STP]
 ```
-
-- W = Forward, S = Reverse, A = Left, D = Right
-- Hold to move, release to stop
-- Speed adjustable via slider
-
----
 
 ### Telemetry Dashboard
 
-The app includes a live monitoring screen that subscribes to all `robot/telemetry/#` topics and displays:
+| Widget | Topic | Notes |
+|--------|-------|-------|
+| IR indicators | `robot/telemetry/ir` | 3 visual indicators |
+| Ultrasonic distances | `robot/telemetry/ultrasonic` | Live cm readouts |
+| Battery voltage | `robot/telemetry/battery` | Low battery warning |
+| Motor speed | `robot/telemetry/speed` | PWM both channels |
+| Connection status | Internal | Broker + ESP32 link |
 
-| Widget | Data Source | Notes |
-|--------|------------|-------|
-| IR Indicators | `robot/telemetry/ir` | 3 visual indicators — line detected / not detected |
-| Ultrasonic Distances | `robot/telemetry/ultrasonic` | 3 live readouts in cm (Left / Center / Right) |
-| Battery Voltage | `robot/telemetry/battery` | Live voltage + low battery warning |
-| Motor Speed | `robot/telemetry/speed` | PWM values for both channels |
-| Connection Status | Internal | MQTT broker + ESP32 connection indicator |
-
----
-
-### ESP32 Firmware — MQTT Overview
+### ESP32 Firmware Sketch
 
 ```cpp
 #include <WiFi.h>
 #include <PubSubClient.h>
 
-const char* ssid        = "YOUR_WIFI";
-const char* password    = "YOUR_PASS";
-const char* mqtt_server = "PHONE_LOCAL_IP"; // e.g. 192.168.1.x
-
-WiFiClient espClient;
-PubSubClient client(espClient);
+const char* mqtt_server = "PHONE_LOCAL_IP"; // phone running the APK broker
 
 void callback(char* topic, byte* payload, unsigned int length) {
   String msg = String((char*)payload).substring(0, length);
-
-  if (String(topic) == "robot/control/move") {
-    handleMove(msg); // "forward" / "back" / "left" / "right" / "stop"
-  }
-  if (String(topic) == "robot/control/speed") {
-    setSpeed(msg.toInt()); // 0–255
-  }
-  if (String(topic) == "robot/control/mode") {
-    setMode(msg); // "manual" or "line_follow"
-  }
+  if (String(topic) == "robot/control/move")  handleMove(msg);
+  if (String(topic) == "robot/control/speed") setSpeed(msg.toInt());
+  if (String(topic) == "robot/control/mode")  setMode(msg);
 }
 
 void publishTelemetry() {
@@ -296,11 +293,19 @@ void publishTelemetry() {
 
 ## Schematic Notes
 
-### Rev 1 — April 2026
-- R1/R2 on schematic are **battery voltage monitor** (ADC divider), NOT part of LM2596 feedback network
-- LM2596 feedback set entirely by RV1 trimpot — functional but see planned fixes below
-- ENA originally on GPIO12 (strapping pin) — **corrected to GPIO33**
-- L298N components repurposed from module — correct freewheeling diodes confirmed ✅
+### Rev 1 — 24 April 2026
+- R1/R2 = battery voltage monitor ADC divider — NOT part of LM2596 feedback
+- LM2596 feedback set by RV1 trimpot — functional, fix planned
+- ENA originally on GPIO12 (strapping pin conflict) — corrected to GPIO21
+- L298N repurposed from module — correct Schottky diodes confirmed ✅
+- LM2596 diode D1 = SS34 Schottky ✅
+
+### Rev 2 — 25 April 2026
+- JST-A (10-pin) added for 3x HC-SR04 ultrasonic sensors
+- J5 (10-pin screw terminal) added for 3x IR line sensors
+- Full GPIO assignments finalised and conflict-checked
+- Voltage divider circuits (1kΩ/2kΩ) added on all 3 ECHO lines
+- Battery ADC confirmed on GPIO34 (ADC1, input-only)
 
 ---
 
@@ -308,27 +313,27 @@ void publishTelemetry() {
 
 | Priority | Issue | Status |
 |----------|-------|--------|
-| 🔴 Critical | LM2596 FB trimpot-only risk: wiper failure could send 8.8V to ESP32 | ⏳ Planned |
-| 🔴 Critical | Fix: R_upper 1kΩ (VOUT→FB) + R_lower 1kΩ (FB→GND), RV1 in series with R_lower | ⏳ Next revision |
-| 🔴 Fixed | ENA on GPIO12 (strapping pin) — moved to GPIO33 | ✅ Fixed |
-| 🟡 Warning | HC-SR04 ECHO pins need 3.3V level shifting | ⏳ To be added |
-| 🟡 Warning | ADC2 unusable with WiFi — IR sensor GPIOs must be ADC1 | ⏳ To assign |
-| 🟡 Warning | Low-ESR cap recommended on LM2596 output | 🔍 To verify |
-| 🟡 Warning | 100nF ceramic decoupling caps on ESP32 VCC | ⏳ Planned |
-| 🟡 Warning | 100nF ceramic in parallel with 220µF input cap | ⏳ Planned |
-| 🟢 OK | L298N diodes — repurposed from module, correct type confirmed | ✅ |
-| 🟢 OK | JST J3: Pin1=GND, Pin2=8.8V confirmed | ✅ |
-| 🟢 OK | R1/R2 confirmed as battery ADC voltage divider | ✅ |
+| 🔴 Critical | LM2596 trimpot-only FB risk — wiper failure → 8.8V to ESP32 | ⏳ Planned |
+| 🔴 Critical | Fix: R_upper 1kΩ (VOUT→FB) + R_lower 1kΩ (FB→GND), RV1 in series | ⏳ Next revision |
+| 🟡 Warning | Low-ESR cap recommended on LM2596 220uF output cap | 🔍 To verify |
+| 🟡 Warning | 100nF ceramic in parallel with 220uF1 input cap | ⏳ Planned |
+| 🟡 Warning | 100nF ceramic decoupling on ESP32 VCC pins | ⏳ Planned |
+| 🟢 OK | L298N diodes — repurposed module, correct Schottky type ✅ | ✅ |
+| 🟢 OK | LM2596 D1 = SS34 Schottky ✅ | ✅ |
+| 🟢 OK | All ECHO GPIOs input-only ADC1 — correct for 3.3V signals ✅ | ✅ |
+| 🟢 OK | All IR + ECHO GPIOs on ADC1 — WiFi/MQTT safe ✅ | ✅ |
+| 🟢 OK | No strapping pin conflicts in final pinout ✅ | ✅ |
+| 🟢 OK | GPIO34 battery ADC — ADC1, input-only, WiFi safe ✅ | ✅ |
+| 🟢 OK | J3 JST: Pin1=GND, Pin2=8.8V ✅ | ✅ |
 
-### LM2596 Planned Fix Detail
+### LM2596 Planned Fix
 
 ```
 VOUT ── R_upper (1kΩ) ── FB ── RV1 (1kΩ trim) ── R_lower (1kΩ) ── GND
 ```
-
 `Vout = 1.23 × (1 + R_lower_total / R_upper)`
 
-With fixed resistors as base, a trimpot wiper failure cannot cause a catastrophic voltage spike on the 5V rail.
+Fixed resistors as base prevent catastrophic output spike if trimpot wiper fails.
 
 ---
 
@@ -336,26 +341,35 @@ With fixed resistors as base, a trimpot wiper failure cannot cause a catastrophi
 
 | Date | Entry |
 |------|-------|
-| Apr 2026 | Rev 1 schematic completed. ESP32 + LM2596 + L298N architecture established. |
-| Apr 2026 | GPIO12 strapping conflict on ENA identified and corrected → GPIO33. |
-| Apr 2026 | Confirmed R1/R2 are battery monitor divider, not LM2596 feedback. |
-| Apr 2026 | L298N repurposed from existing module — correct freewheeling diodes confirmed, no substitution needed. |
-| Apr 2026 | IR sensors (x3) and HC-SR04 ultrasonic sensors (x3) to be added to schematic. |
-| Apr 2026 | Android MQTT app architecture defined: embedded broker in APK, dual control modes (accelerometer + WASD), full telemetry dashboard. |
+| 24 Apr 2026 | Rev 1 schematic complete. ESP32 + LM2596 + L298N architecture established. |
+| 24 Apr 2026 | GPIO12 strapping conflict on EnA found and corrected → GPIO21. |
+| 24 Apr 2026 | R1/R2 confirmed as battery ADC divider, not LM2596 feedback. |
+| 24 Apr 2026 | L298N repurposed from module — correct Schottky diodes confirmed. |
+| 24 Apr 2026 | Android MQTT app architecture defined — embedded broker, dual control modes, telemetry dashboard. |
+| 25 Apr 2026 | JST-A (ultrasonic) and J5 (IR sensors) connectors added to schematic and PCB. |
+| 25 Apr 2026 | Full GPIO conflict check performed — all pins verified clean. |
+| 25 Apr 2026 | Final GPIO assignments locked in for all motors, sensors, and battery ADC. |
+| 25 Apr 2026 | LM2596 D1 = SS34 Schottky confirmed from schematic. |
 
 ---
 
-## 📌 GPIO Quick Reference — Remaining Available
+## 📌 Complete GPIO Map
 
-| GPIO | ADC | PWM | Notes |
-|------|-----|-----|-------|
-| GPIO32 | ADC1 ✅ | ✅ | Good for IR analog |
-| GPIO34 | ADC1 ✅ | ❌ | Input only — ECHO or IR |
-| GPIO35 | ADC1 ✅ | ❌ | Input only — ECHO or IR |
-| GPIO36 | ADC1 ✅ | ❌ | Input only — ECHO or IR |
-| GPIO39 | ADC1 ✅ | ❌ | Input only — IR analog |
-| GPIO21 | — | ✅ | General purpose — TRIG |
-| GPIO22 | — | ✅ | General purpose — TRIG |
-| GPIO23 | — | ✅ | General purpose — TRIG |
-
-> 💡 **Suggested allocation:** GPIO34/35/36 → 3x ECHO. GPIO32/39 + one more ADC1 → 3x IR. GPIO21/22/23 → 3x TRIG.
+| GPIO | Header Pin | Function | Type | Notes |
+|------|-----------|----------|------|-------|
+| GPIO13 | Pin 15 | Motor A IN1 | Output | |
+| GPIO14 | Pin 12 | Motor A IN2 | Output | |
+| GPIO15 | — | IR Right | Input | JST J5, mild strapping — safe |
+| GPIO18 | — | TRIG Right | Output | JST-A ultrasonic |
+| GPIO21 | Pin 33 | EnA Motor A | PWM Output | |
+| GPIO22 | — | TRIG Left | Output | JST-A ultrasonic |
+| GPIO23 | — | TRIG Center | Output | JST-A ultrasonic |
+| GPIO25 | Pin 9 | EnB Motor B | PWM Output | |
+| GPIO26 | Pin 10 | Motor B IN4 | Output | |
+| GPIO27 | Pin 11 | Motor B IN3 | Output | |
+| GPIO32 | — | IR Left | Input | ADC1, JST J5 |
+| GPIO33 | — | IR Center | Input | ADC1, JST J5 |
+| GPIO34 | Pin 5 | Battery ADC | Input | ADC1, input-only, R1/R2 divider |
+| GPIO35 | — | ECHO Left | Input | ADC1, input-only, JST-A |
+| GPIO36 | — | ECHO Center | Input | ADC1, input-only, JST-A |
+| GPIO39 | — | ECHO Right | Input | ADC1, input-only, JST-A |
