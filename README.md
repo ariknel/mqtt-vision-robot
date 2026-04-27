@@ -47,7 +47,7 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 
 ## PCB Layout
 
-![PCB Layout](pcb_layout.png)
+![PCB Layout](3d.PNG)
 
 *KiCad PCB layout — ESP32-DEVKITC V1, LM2596S-ADJ power section, L298N motor driver, JST-A ultrasonic connector, JST-B IR sensor connector.*
 
