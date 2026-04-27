@@ -28,7 +28,8 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 | MCU | ESP32-DEV (DEVKITC V1) | Dual-core, WiFi/BT capable |
 | Motor Driver | L298N | Repurposed from L298N module — correct Schottky diodes confirmed ✅ |
 | Buck Converter | LM2596S-ADJ | 8.8V → 5V, set via RV1 trimpot. Diode: SS34 Schottky ✅ |
-| Power Input | 2S LiPo | 8.8V via JST J3 (2-pin) connector |
+| Power Input | Custom 2S 18650 pack (2x 18650 cells) | 8.4V fully charged, connected via JST J3 (2-pin) connector |
+| Charger | Hailege 2S USB-C BMS Boost Charger | Step-up boost, charges to 8.4V via USB-C (5V input), overcharge & overcurrent protection |
 | Line Sensors | IR Sensor x3 | Digital output, 3.3V — via JST-B (10-pin) |
 | Distance Sensors | HC-SR04 x3 | 2021+ version — ECHO outputs 3.3V logic, no voltage divider needed ✅ |
 | Control App | Android (Android Studio) | MQTT-based, accelerometer + WASD control |
@@ -85,7 +86,7 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 
 | Function | Label | ESP32 Pin | Notes |
 |----------|-------|-----------|-------|
-| Battery ADC | D34 | Pin 19 | R1/R2 voltage divider from J3 Pin 2 (8.8V). Input-only, ADC1 — WiFi safe ✅ |
+| Battery ADC | D34 | Pin 19 | R1/R2 voltage divider from J3 Pin 2 (8.4V max). Input-only, ADC1 — WiFi safe ✅ |
 
 ### IR Line Sensors — JST-B (10-pin)
 
@@ -169,11 +170,11 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 ## Power System
 
 ```
-[2S LiPo 8.8V]
+[Custom 2S 18650 Pack — 8.4V fully charged]
       │
     J3 JST (2-pin)
       │
-      ├─── R1/R2 voltage divider ─── D34 Pin 19 (battery ADC)
+      ├─── R1/R2 voltage divider ─── D34 Pin 19 (battery ADC — 8.4V max)
       ├─── 220uF1 bulk capacitor (input filter)
       ├─── L298N VS pin (motor supply, 8.8V direct)
       │
@@ -455,5 +456,6 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 | 27 Apr 2026 | PCB routing complete. Final DRC: 0 errors, 2 warnings (mounting hole library mismatch — ignorable). Board is production ready. |
 | 27 Apr 2026 | GitHub URL added to PCB silkscreen: github.com/ariknel/mqtt-vision-robot |
 | 27 Apr 2026 | Gerber files exported from KiCad and uploaded to /gerber folder in GitHub repo. Board ready for manufacturing. |
+| 27 Apr 2026 | Power source clarified: custom 2S 18650 battery pack (8.4V fully charged), charged via Hailege 2S USB-C BMS boost charger module. |
 | 27 Apr 2026 | Gerber files exported from KiCad and uploaded to `/gerber` folder in GitHub repo. Board ready for manufacturing. |
 | 27 Apr 2026 | Android app development started — planning and details to be discussed. |
