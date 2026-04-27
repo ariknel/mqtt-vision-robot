@@ -389,9 +389,21 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 
 *Fully routed 2-layer PCB — red = F.Cu, blue = B.Cu, thick traces = Power netclass (0.8mm), thin traces = Default netclass (0.25mm)*
 
-### Step 7 — Gerber Export & Manufacturing ⏳
+### Step 7 — Gerber Export & Manufacturing ✅
 
 > Board is production ready — DRC passes with 0 errors, 2 ignorable mounting hole warnings.
+
+1. **File → Plot** → Gerber format
+2. Export copper layers, silkscreen, soldermask, Edge.Cuts + drill files
+3. Submit to manufacturer (e.g. JLCPCB, PCBWay)
+
+📁 **Gerber files are in the `/gerber` folder of this repo.**
+
+1. **File → Plot** → Gerber format
+2. Export copper layers, silkscreen, soldermask, Edge.Cuts + drill files
+3. Submit to manufacturer (e.g. JLCPCB, PCBWay)
+
+📁 **Gerber files are located in the `/gerber` folder of this repo.**
 
 1. **File → Plot** → Gerber format
 2. Export copper layers, silkscreen, soldermask, Edge.Cuts + drill files
@@ -442,4 +454,6 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 | 27 Apr 2026 | Fixed all DRC errors: moved decorative text to F.Silkscreen, reduced Power clearance to 0.5mm to match IC footprint pad spacing, deleted 3 dangling track stubs. |
 | 27 Apr 2026 | PCB routing complete. Final DRC: 0 errors, 2 warnings (mounting hole library mismatch — ignorable). Board is production ready. |
 | 27 Apr 2026 | GitHub URL added to PCB silkscreen: github.com/ariknel/mqtt-vision-robot |
+| 27 Apr 2026 | Gerber files exported from KiCad and uploaded to /gerber folder in GitHub repo. Board ready for manufacturing. |
+| 27 Apr 2026 | Gerber files exported from KiCad and uploaded to `/gerber` folder in GitHub repo. Board ready for manufacturing. |
 | 27 Apr 2026 | Android app development started — planning and details to be discussed. |
