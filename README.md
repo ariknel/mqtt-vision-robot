@@ -231,7 +231,7 @@ Once routing is complete and DRC passes clean:
 
 ## PCB Layout
 
-![PCB Layout](pcb_layout.png)
+![PCB Layout](3d.png)
 
 *KiCad PCB layout — ESP32-DEVKITC V1, LM2596S-ADJ power section, L298N motor driver, JST-A ultrasonic connector, JST-B IR sensor connector.*
 
