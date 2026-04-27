@@ -62,7 +62,7 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 
 ## PCB Layout
 
-![PCB Layout](pcb_layout1.png)
+![PCB Layout](pcb_layout.png)
 
 *KiCad PCB layout — to be updated after routing is complete.*
 
@@ -385,7 +385,7 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 3. **File → Import → Specctra Session**
 4. Review traces, re-run DRC
 
-![Routed PCB](pcb_routed.png)
+![Routed PCB](pcb_routed1.png)
 
 *Fully routed 2-layer PCB — red = F.Cu, blue = B.Cu, thick traces = Power netclass (0.8mm), thin traces = Default netclass (0.25mm)*
 
