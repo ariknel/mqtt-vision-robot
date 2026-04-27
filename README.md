@@ -7,7 +7,7 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 ## 📋 Table of Contents
 
 - [Hardware Overview](#hardware-overview)
-- [PCB Layout](#pcb-layout)
+- [PCB Development Process](#pcb-development-process)
 - [Pinout Reference](#pinout-reference)
 - [JST Connector Wiring](#jst-connector-wiring)
 - [Power System](#power-system)
@@ -30,7 +30,7 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 | Buck Converter | LM2596S-ADJ | 8.8V → 5V, set via RV1 trimpot. Diode: SS34 Schottky ✅ |
 | Power Input | 2S LiPo | 8.8V via JST J3 (2-pin) connector |
 | Line Sensors | IR Sensor x3 | Digital output, 3.3V — via JST-B (10-pin) |
-| Distance Sensors | HC-SR04 x3 | 2021+ version — 3.3V compatible ECHO, no voltage divider needed ✅ |
+| Distance Sensors | HC-SR04 x3 | 2021+ version — ECHO outputs 3.3V logic, no voltage divider needed ✅ |
 | Control App | Android (Android Studio) | MQTT-based, accelerometer + WASD control |
 
 > ℹ️ **L298N Diodes:** Components repurposed from L298N module — correct Schottky freewheeling diodes confirmed, no substitution needed.
@@ -40,37 +40,35 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 
 ## PCB Development Process
 
-This project uses **KiCad** for schematic capture and PCB layout. Below is a log of the full design process.
+This project uses **KiCad** for schematic capture and PCB layout.
 
 ---
 
 ### Step 1 — Schematic Design
 
-The schematic was built in KiCad's schematic editor. Several components were not available in KiCad's default libraries and had to be imported manually:
+Built in KiCad's schematic editor. Several components were not in KiCad's default libraries and had to be imported manually:
 
-- ESP32-DEVKITC V1
+- ESP32-DEV DEVKITC V1
 - LM2596S-ADJ
 - L298N
 - JST connectors (JST-A, JST-B)
 
-These custom footprints have been added to the repository so the project can be opened on any machine without missing library errors.
+📁 **Custom footprints are in the `/footprints` folder of this repo.**
 
-📁 **Custom footprints are located in the `/footprints` folder of this repo.**
-
-![Schematic](schematic_full.png)
+![Full Schematic](schematic_full.png)
 
 ---
 
 ### Step 2 — Component Placement
 
-After completing the schematic, components were imported into the PCB editor and placed manually. Placement decisions were guided by the following principles:
+Placed manually in the PCB editor following these principles:
 
-- **LM2596 power section** — input cap, IC, inductor, diode and output cap placed in a tight left-to-right cluster to minimize the switching loop and reduce EMI
-- **L298N motor driver** — placed centrally with freewheeling diodes grouped directly around each output pair
-- **ESP32-DEVKITC** — centered on the board with signal pins facing the connectors to minimize trace crossings
-- **JST-A (ultrasonic) and JST-B (IR)** — placed on the right board edge for easy cable access
-- **J1/J2 motor screw terminals** — placed on the bottom edge for easy motor wire access
-- **J3 JST power connector** — placed on the left edge, close to LM2596 input
+- **LM2596 power section** — input cap, IC, inductor, diode and output cap in a tight left-to-right cluster to minimize switching loop and EMI
+- **L298N** — placed centrally with freewheeling diodes grouped around each output pair
+- **ESP32-DEV** — centered on the board, signal pins facing connectors to minimize trace crossings
+- **JST-A & JST-B** — right board edge for easy cable access
+- **J1/J2 motor screw terminals** — bottom edge for easy motor wire access
+- **J3 JST power connector** — left edge, close to LM2596 input
 
 ![PCB Layout](pcb_layout.png)
 
@@ -78,29 +76,25 @@ After completing the schematic, components were imported into the PCB editor and
 
 ### Step 3 — Board Outline (Edge.Cuts)
 
-The board outline was drawn in KiCad using the **Edge.Cuts layer**:
-
-1. Selected `Edge.Cuts` layer in the PCB editor
-2. Used **Place → Rectangle** to draw the outline around all components
-3. Added ~5mm margin on all sides
-4. Board outline verified via **Inspect → Design Rules Checker (DRC)**
+1. Selected `Edge.Cuts` layer in PCB editor
+2. Used **Place → Rectangle** to draw outline around all components with ~5mm margin
+3. Verified via DRC
 
 ---
 
 ### Step 4 — Mounting Holes
 
-4x mounting holes added in the PCB editor using the **MountingHole_4.3x6.2mm_M4_Pad** footprint, placed in each corner of the board for secure chassis mounting.
+4x **MountingHole_4.3x6.2mm_M4_Pad** footprints placed in each corner for chassis mounting.
 
 ---
 
 ### Step 5 — Design Rules Check (DRC)
 
-DRC was run via **Inspect → Design Rules Checker → Run DRC** after each major change to verify:
+Run via **Inspect → Design Rules Checker → Run DRC**. Results:
 
-- No footprint errors
-- No unconnected nets beyond expected ratsnest
-- No clearance violations
-- Board outline present on Edge.Cuts
+- 3 silkscreen warnings (D10/D11 overlap, J1/J2 overlap, J1 ref over U4 pad) — **fixed** ✅
+- 0 footprint errors ✅
+- 69 unconnected pads — expected, routing not yet started
 
 ---
 
@@ -108,12 +102,10 @@ DRC was run via **Inspect → Design Rules Checker → Run DRC** after each majo
 
 > ⏳ In progress
 
-Routing is being handled by **FreeRouter** (external auto-router compatible with KiCad):
-
-1. Export board from KiCad: **File → Export → Specctra DSN**
-2. Open DSN file in FreeRouter and run auto-router
-3. Import completed routing back into KiCad: **File → Import → Specctra Session**
-4. Review all traces, verify clearances, re-run DRC
+1. Export: **File → Export → Specctra DSN**
+2. Open in FreeRouter, run auto-router
+3. Import back: **File → Import → Specctra Session**
+4. Review traces, re-run DRC
 
 ---
 
@@ -121,121 +113,13 @@ Routing is being handled by **FreeRouter** (external auto-router compatible with
 
 > ⏳ Not yet started
 
-Once routing is complete and DRC passes clean:
-
-1. **File → Plot** → select Gerber format
+1. **File → Plot** → Gerber format
 2. Export all copper layers, silkscreen, soldermask, Edge.Cuts
 3. Generate drill files
-4. Submit to PCB manufacturer (e.g. JLCPCB, PCBWay)
+4. Submit to manufacturer (e.g. JLCPCB, PCBWay)
 
 ---
 
-## PCB Layout
-
-> 📷 *PCB layout image — to be added*
-
----
-
-
-## PCB Development Process
-
-This project uses **KiCad** for schematic capture and PCB layout. Below is a log of the full design process.
-
----
-
-### Step 1 — Schematic Design
-
-The schematic was built in KiCad's schematic editor. Several components were not available in KiCad's default libraries and had to be imported manually:
-
-- ESP32-DEVKITC V1
-- LM2596S-ADJ
-- L298N
-- JST connectors (JST-A, JST-B)
-
-These custom footprints have been added to the repository so the project can be opened on any machine without missing library errors.
-
-📁 **Custom footprints are located in the `/footprints` folder of this repo.**
-
-![Schematic](schematic_full.png)
-
----
-
-### Step 2 — Component Placement
-
-After completing the schematic, components were imported into the PCB editor and placed manually. Placement decisions were guided by the following principles:
-
-- **LM2596 power section** — input cap, IC, inductor, diode and output cap placed in a tight left-to-right cluster to minimize the switching loop and reduce EMI
-- **L298N motor driver** — placed centrally with freewheeling diodes grouped directly around each output pair
-- **ESP32-DEVKITC** — centered on the board with signal pins facing the connectors to minimize trace crossings
-- **JST-A (ultrasonic) and JST-B (IR)** — placed on the right board edge for easy cable access
-- **J1/J2 motor screw terminals** — placed on the bottom edge for easy motor wire access
-- **J3 JST power connector** — placed on the left edge, close to LM2596 input
-
-![PCB Layout](pcb_layout.png)
-
----
-
-### Step 3 — Board Outline (Edge.Cuts)
-
-The board outline was drawn in KiCad using the **Edge.Cuts layer**:
-
-1. Selected `Edge.Cuts` layer in the PCB editor
-2. Used **Place → Rectangle** to draw the outline around all components
-3. Added ~5mm margin on all sides
-4. Board outline verified via **Inspect → Design Rules Checker (DRC)**
-
----
-
-### Step 4 — Mounting Holes
-
-4x mounting holes added in the PCB editor using the **MountingHole_4.3x6.2mm_M4_Pad** footprint, placed in each corner of the board for secure chassis mounting.
-
----
-
-### Step 5 — Design Rules Check (DRC)
-
-DRC was run via **Inspect → Design Rules Checker → Run DRC** after each major change to verify:
-
-- No footprint errors
-- No unconnected nets beyond expected ratsnest
-- No clearance violations
-- Board outline present on Edge.Cuts
-
----
-
-### Step 6 — Auto-Routing with FreeRouter
-
-> ⏳ In progress
-
-Routing is being handled by **FreeRouter** (external auto-router compatible with KiCad):
-
-1. Export board from KiCad: **File → Export → Specctra DSN**
-2. Open DSN file in FreeRouter and run auto-router
-3. Import completed routing back into KiCad: **File → Import → Specctra Session**
-4. Review all traces, verify clearances, re-run DRC
-
----
-
-### Step 7 — Gerber Export & Manufacturing
-
-> ⏳ Not yet started
-
-Once routing is complete and DRC passes clean:
-
-1. **File → Plot** → select Gerber format
-2. Export all copper layers, silkscreen, soldermask, Edge.Cuts
-3. Generate drill files
-4. Submit to PCB manufacturer (e.g. JLCPCB, PCBWay)
-
----
-
-## PCB Layout
-
-![PCB Layout](pcb_layout.png)
-
-*KiCad PCB layout — ESP32-DEVKITC V1, LM2596S-ADJ power section, L298N motor driver, JST-A ultrasonic connector, JST-B IR sensor connector.*
-
----
 ## Pinout Reference
 
 ### Motor Driver — L298N
@@ -269,9 +153,9 @@ Once routing is complete and DRC passes clean:
 |--------|-----------|----------|-----------|----------|-------|
 | Ultrasonic Left | D22 | Pin 14 | D35 | Pin 20 | ECHO input-only ADC1 ✅ |
 | Ultrasonic Center | D23 | Pin 15 | D19 | Pin 10 | Direct connection ✅ |
-| Ultrasonic Right | D18 | Pin 9 | D4 | Pin 5 | D4 mild strapping — ECHO is input, defaults safe ✅ |
+| Ultrasonic Right | D18 | Pin 9 | D4 | Pin 5 | Direct connection ✅ |
 
-> ✅ HC-SR04 2021+ version: ECHO outputs 3.3V logic — direct connection to ESP32, no voltage divider needed.
+> ✅ HC-SR04 2021+: ECHO outputs 3.3V logic — direct connection, no voltage divider needed.
 
 ### JST Power Connector — J3 (2-pin JST)
 
@@ -284,7 +168,7 @@ Once routing is complete and DRC passes clean:
 
 ## JST Connector Wiring
 
-### JST-A — Ultrasonic Sensors HC-SR04 2021+ (10-pin JST)
+### JST-A — Ultrasonic Sensors (10-pin JST)
 
 | Pin | Signal | Label | ESP32 Pin | Notes |
 |-----|--------|-------|-----------|-------|
@@ -357,10 +241,10 @@ Once routing is complete and DRC passes clean:
 
 ### Ultrasonic Sensors HC-SR04 2021+ (x3)
 
-3 ultrasonic sensors for obstacle detection. 2021+ version — ECHO outputs 3.3V logic.
+3 ultrasonic sensors for obstacle detection (left, center, right).
 
 - Powered from 5V rail
-- TRIG: 3.3V ESP32 output sufficient ✅
+- TRIG: 3.3V output sufficient ✅
 - ECHO: direct connection, no divider needed ✅
 
 **MQTT telemetry:** `robot/telemetry/ultrasonic`
@@ -408,7 +292,7 @@ Custom Android app (Android Studio) communicates with the ESP32 over MQTT. The b
          Motors / Sensors
 ```
 
-> The phone acts as both broker and client. The ESP32 connects to the broker using the phone's local IP over shared WiFi. No cloud dependency, no external setup.
+> The phone acts as both broker and client. The ESP32 connects using the phone's local IP over shared WiFi. No cloud dependency.
 
 ### MQTT Topic Structure
 
@@ -424,7 +308,7 @@ Custom Android app (Android Studio) communicates with the ESP32 over MQTT. The b
 
 ### Control Modes
 
-Toggled by a single button in the app UI. Accelerometer listener registered/unregistered on toggle to preserve battery.
+Toggled by a single button. Accelerometer listener registered/unregistered on toggle to preserve battery.
 
 **Mode 1 — Accelerometer tilt:**
 
@@ -447,11 +331,11 @@ Toggled by a single button in the app UI. Accelerometer listener registered/unre
 
 | Widget | MQTT Topic | Notes |
 |--------|-----------|-------|
-| IR indicators | `robot/telemetry/ir` | 3 visual indicators — line / no line |
+| IR indicators | `robot/telemetry/ir` | 3 visual indicators |
 | Ultrasonic distances | `robot/telemetry/ultrasonic` | 3 live readouts in cm |
-| Battery voltage | `robot/telemetry/battery` | Live voltage + low battery warning |
+| Battery voltage | `robot/telemetry/battery` | Live + low battery warning |
 | Motor speed | `robot/telemetry/speed` | PWM values both channels |
-| Connection status | Internal | Broker + ESP32 link indicator |
+| Connection status | Internal | Broker + ESP32 link |
 
 ### ESP32 Firmware — MQTT Overview
 
@@ -482,23 +366,23 @@ void publishTelemetry() {
 
 ### Rev 1 — 24 April 2026
 - R1/R2 = battery voltage monitor ADC divider — NOT part of LM2596 feedback network
-- LM2596 feedback set by RV1 trimpot — functional, fix planned for next revision
-- EnA originally on GPIO12 (strapping pin conflict) — corrected to D21
+- LM2596 feedback set by RV1 trimpot — functional, fix planned
+- EnA originally on D12 (strapping pin conflict) — corrected to D21
 - L298N repurposed from module — correct Schottky diodes confirmed ✅
 - LM2596 diode D1 = SS34 Schottky ✅
 
 ### Rev 2 — 25 April 2026
 - JST-A (10-pin) added for 3x HC-SR04 ultrasonic sensors
 - JST-B (10-pin) added for 3x IR line sensors
-- HC-SR04 confirmed as 2021+ version — no voltage dividers needed on ECHO lines ✅
+- HC-SR04 confirmed as 2021+ version — no voltage dividers needed ✅
 - Full GPIO assignments finalised and conflict-checked
 
 ### Rev 3 — 27 April 2026
 - Corrected ESP32 footprint from ESP32-WROOM-32D to ESP32-DEV DEVKITC V1
-- All pin numbers updated to match DEVKITC V1 physical header layout
-- ECHO Center changed from D36 (non-existent on DEVKITC V1) → D19 Pin 10
-- ECHO Right changed from D39 (non-existent on DEVKITC V1) → D4 Pin 5
-- Full pinout re-verified against DEVKITC V1 — no conflicts found ✅
+- All pin numbers updated to match DEVKITC V1 physical header
+- ECHO Center: D36 (non-existent) → D19 Pin 10
+- ECHO Right: D39 (non-existent) → D4 Pin 5
+- Full pinout re-verified — no conflicts ✅
 
 ---
 
@@ -506,7 +390,7 @@ void publishTelemetry() {
 
 | Priority | Issue | Status |
 |----------|-------|--------|
-| 🔴 Critical | LM2596 trimpot-only FB risk — wiper failure could send 8.8V to ESP32. Fix: add R_upper 1kΩ (VOUT→FB) + R_lower 1kΩ (FB→GND), RV1 in series with R_lower for safe fine tuning | ⏳ Next revision |
+| 🔴 Critical | LM2596 trimpot-only FB risk — wiper failure could send 8.8V to ESP32. Fix: R_upper 1kΩ (VOUT→FB) + R_lower 1kΩ (FB→GND), RV1 in series with R_lower | ⏳ Next revision |
 | 🟡 Warning | Low-ESR capacitor recommended on LM2596 220uF output | 🔍 To verify |
 | 🟢 OK | L298N diodes — repurposed from module, correct Schottky type ✅ | ✅ |
 | 🟢 OK | LM2596 D1 = SS34 Schottky ✅ | ✅ |
@@ -515,7 +399,7 @@ void publishTelemetry() {
 | 🟢 OK | No strapping pin conflicts in final pinout ✅ | ✅ |
 | 🟢 OK | D34 battery ADC — ADC1, input-only, WiFi safe ✅ | ✅ |
 | 🟢 OK | J3 JST: Pin1=GND, Pin2=8.8V ✅ | ✅ |
-| 🟢 OK | 100nF decoupling on ESP32 VCC not added — ESP32-DEVKITC has decoupling caps built onto the module ✅ | ✅ |
+| 🟢 OK | 100nF decoupling not added — ESP32-DEVKITC has it built onto the module ✅ | ✅ |
 | 🟢 OK | D36/D39 non-existent on DEVKITC V1 — replaced with D19/D4 ✅ | ✅ |
 
 ---
@@ -525,23 +409,22 @@ void publishTelemetry() {
 | Date | Entry |
 |------|-------|
 | 24 Apr 2026 | Rev 1 schematic complete. ESP32 + LM2596 + L298N architecture established. |
-| 24 Apr 2026 | D12 strapping conflict on EnA found and corrected → D21. |
+| 24 Apr 2026 | EnA strapping conflict on D12 found and corrected → D21. |
 | 24 Apr 2026 | R1/R2 confirmed as battery ADC divider, not LM2596 feedback. |
 | 24 Apr 2026 | L298N repurposed from module — correct Schottky diodes confirmed. |
 | 24 Apr 2026 | Android MQTT app architecture defined — embedded broker, dual control modes, telemetry dashboard. |
-| 25 Apr 2026 | JST-A (ultrasonic) and JST-B (IR sensors) connectors added to schematic and PCB. |
-| 25 Apr 2026 | Full GPIO conflict check performed — all pins verified clean. |
-| 25 Apr 2026 | HC-SR04 confirmed as 2021+ version — voltage dividers removed from design. |
+| 25 Apr 2026 | JST-A (ultrasonic) and JST-B (IR) connectors added to schematic and PCB. |
+| 25 Apr 2026 | Full GPIO conflict check — all pins verified clean. |
+| 25 Apr 2026 | HC-SR04 confirmed as 2021+ — voltage dividers removed from design. |
 | 25 Apr 2026 | Final GPIO assignments locked in for all motors, sensors, and battery ADC. |
 | 25 Apr 2026 | LM2596 D1 = SS34 Schottky confirmed from schematic. |
-| 25 Apr 2026 | Schematic Rev 2 exported — JST-A and JST-B fully connected, all sensor GPIO traces complete. |
+| 25 Apr 2026 | Schematic Rev 2 exported — JST-A and JST-B fully connected. |
 | 27 Apr 2026 | PCB design completed. |
-| 27 Apr 2026 | PCB diode orientation cleaned up — all 8 L298N freewheeling diodes set to consistent A/C orientation. DRC run to verify no electrical conflicts. |
-| 27 Apr 2026 | Discovered incorrect ESP32 footprint — was using ESP32-WROOM-32D. Corrected to ESP32-DEV DEVKITC V1. |
-| 27 Apr 2026 | Updated to correct ESP32-DEVKITC V1 symbol and footprint. Footprint files uploaded to GitHub repo. |
-| 27 Apr 2026 | All pin numbers updated to DEVKITC V1 physical header layout. D36/D39 non-existent on this board — replaced with D19 (Pin 10) and D4 (Pin 5). |
-| 27 Apr 2026 | Full pinout re-verified against DEVKITC V1 — 16 GPIOs used, 0 conflicts, 9 spare pins remaining. |
-| 27 Apr 2026 | Started Android app development — planning and working out details (to be discussed further). |
+| 27 Apr 2026 | L298N diode orientation cleaned up — all 8 diodes set to consistent A/C orientation. DRC verified. |
+| 27 Apr 2026 | Incorrect ESP32 footprint found (WROOM-32D) — corrected to ESP32-DEV DEVKITC V1. Footprints uploaded to repo. |
+| 27 Apr 2026 | All pin numbers updated to DEVKITC V1 layout. D36/D39 replaced with D19/D4. 16 GPIOs used, 0 conflicts, 9 spare. |
+| 27 Apr 2026 | DRC run — 3 silkscreen warnings fixed. 0 footprint errors. 69 unconnected pads expected pre-routing. |
+| 27 Apr 2026 | Started Android app development — planning and details to be discussed. |
 
 ---
 
