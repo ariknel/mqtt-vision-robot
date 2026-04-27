@@ -171,7 +171,7 @@ After completing the schematic, components were imported into the PCB editor and
 - **J1/J2 motor screw terminals** — placed on the bottom edge for easy motor wire access
 - **J3 JST power connector** — placed on the left edge, close to LM2596 input
 
-![PCB Layout](3d.PNG)
+![PCB Layout](pcb_layout.png)
 
 ---
 
@@ -231,7 +231,7 @@ Once routing is complete and DRC passes clean:
 
 ## PCB Layout
 
-![PCB Layout](3d.png)
+![PCB Layout](pcb_layout.png)
 
 *KiCad PCB layout — ESP32-DEVKITC V1, LM2596S-ADJ power section, L298N motor driver, JST-A ultrasonic connector, JST-B IR sensor connector.*
 
