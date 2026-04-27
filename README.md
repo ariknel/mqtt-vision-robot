@@ -309,10 +309,8 @@ void publishTelemetry() {
 
 | Priority | Issue | Status |
 |----------|-------|--------|
-| 🔴 Critical | LM2596 trimpot-only FB risk — wiper failure could send 8.8V to ESP32 | ⏳ Planned |
-| 🔴 Critical | Fix: R_upper 1kΩ (VOUT→FB) + R_lower 1kΩ (FB→GND), RV1 in series with R_lower | ⏳ Next revision |
+| 🔴 Critical | LM2596 trimpot-only FB risk — wiper failure could send 8.8V to ESP32. Fix: add R_upper 1kΩ (VOUT→FB) + R_lower 1kΩ (FB→GND), RV1 in series with R_lower for safe fine tuning | ⏳ Next revision |
 | 🟡 Warning | Low-ESR capacitor recommended on LM2596 220uF output | 🔍 To verify |
-| 🟡 Warning | 100nF ceramic in parallel with 220uF1 input capacitor | ⏳ Planned |
 | 🟢 OK | 100nF decoupling on ESP32 VCC not added — ESP32-DEVKITC has decoupling caps built onto the module ✅ | ✅ |
 | 🟢 OK | L298N diodes — repurposed from module, correct Schottky type ✅ | ✅ |
 | 🟢 OK | LM2596 D1 = SS34 Schottky ✅ | ✅ |
@@ -322,15 +320,6 @@ void publishTelemetry() {
 | 🟢 OK | GPIO34 battery ADC — ADC1, input-only, WiFi safe ✅ | ✅ |
 | 🟢 OK | J3 JST: Pin1=GND, Pin2=8.8V ✅ | ✅ |
 
-### LM2596 Planned Fix Detail
-
-```
-VOUT ── R_upper (1kΩ) ── FB ── RV1 (1kΩ trim) ── R_lower (1kΩ) ── GND
-```
-
-`Vout = 1.23 × (1 + R_lower_total / R_upper)`
-
-With fixed resistors as base, a trimpot wiper failure cannot cause a catastrophic voltage spike on the 5V rail.
 
 ---
 
