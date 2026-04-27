@@ -171,7 +171,7 @@ After completing the schematic, components were imported into the PCB editor and
 - **J1/J2 motor screw terminals** — placed on the bottom edge for easy motor wire access
 - **J3 JST power connector** — placed on the left edge, close to LM2596 input
 
-![PCB Layout](3d.png)
+![PCB Layout](3d.PNG)
 
 ---
 
