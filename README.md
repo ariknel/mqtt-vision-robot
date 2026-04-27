@@ -1,12 +1,13 @@
 # 🤖 ESP32 Line Sensing Robot
 
-A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor control via L298N, 3 IR line sensors, 3 ultrasonic distance sensors, and an LM2596S-ADJ buck converter powered by a 2S LiPo (8.8V). Controlled via a custom **Android MQTT app** built in Android Studio, with full telemetry monitoring and dual control modes (accelerometer tilt + WASD buttons).
+A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring dual motor control via L298N, 3 IR line sensors, 3 ultrasonic distance sensors, and an LM2596S-ADJ buck converter powered by a 2S LiPo (8.8V). Controlled via a custom **Android MQTT app** built in Android Studio, with full telemetry monitoring and dual control modes (accelerometer tilt + WASD buttons).
 
 ---
 
 ## 📋 Table of Contents
 
 - [Hardware Overview](#hardware-overview)
+- [PCB Layout](#pcb-layout)
 - [Pinout Reference](#pinout-reference)
 - [JST Connector Wiring](#jst-connector-wiring)
 - [Power System](#power-system)
@@ -24,55 +25,69 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 
 | Component | Part | Notes |
 |-----------|------|-------|
-| MCU | ESP32-DEVKITC (ESP32-WROOM-32D module) | Dual-core, WiFi/BT capable |
+| MCU | ESP32-DEV (DEVKITC V1) | Dual-core, WiFi/BT capable |
 | Motor Driver | L298N | Repurposed from L298N module — correct Schottky diodes confirmed ✅ |
 | Buck Converter | LM2596S-ADJ | 8.8V → 5V, set via RV1 trimpot. Diode: SS34 Schottky ✅ |
 | Power Input | 2S LiPo | 8.8V via JST J3 (2-pin) connector |
 | Line Sensors | IR Sensor x3 | Digital output, 3.3V — via JST-B (10-pin) |
-| Distance Sensors | HC-SR04 x3 | 2021+ version — 3.3V compatible, no voltage divider needed ✅ |
+| Distance Sensors | HC-SR04 x3 | 2021+ version — 3.3V compatible ECHO, no voltage divider needed ✅ |
 | Control App | Android (Android Studio) | MQTT-based, accelerometer + WASD control |
 
 > ℹ️ **L298N Diodes:** Components repurposed from L298N module — correct Schottky freewheeling diodes confirmed, no substitution needed.
-> ℹ️ **HC-SR04 Version:** 2021+ modules confirmed — ECHO pin outputs 3.3V logic, connects directly to ESP32 GPIO without voltage divider ✅
+> ℹ️ **HC-SR04 Version:** 2021+ modules confirmed — ECHO pin outputs 3.3V logic, connects directly to ESP32 GPIO ✅
 
 ---
 
+## PCB Layout
+
+> 📷 *PCB layout image — to be added*
+
+---
+
+
+## PCB Layout
+
+![PCB Layout](pcb_layout.png)
+
+*KiCad PCB layout — ESP32-DEVKITC V1, LM2596S-ADJ power section, L298N motor driver, JST-A ultrasonic connector, JST-B IR sensor connector.*
+
+---
 ## Pinout Reference
 
 ### Motor Driver — L298N
 
-| L298N Pin | ESP32 Header Pin | GPIO | Type | Notes |
-|-----------|-----------------|------|------|-------|
-| IN1 | Pin 15 | GPIO13 | Digital Output | Motor A direction |
-| IN2 | Pin 12 | GPIO14 | Digital Output | Motor A direction |
-| EnA | Pin 33 | GPIO21 | PWM Output | Motor A speed control |
-| IN3 | Pin 11 | GPIO27 | Digital Output | Motor B direction |
-| IN4 | Pin 10 | GPIO26 | Digital Output | Motor B direction |
-| EnB | Pin 9 | GPIO25 | PWM Output | Motor B speed control |
+| L298N Pin | Label | ESP32 Pin | Type | Notes |
+|-----------|-------|-----------|------|-------|
+| IN1 | D13 | Pin 28 | Digital Output | Motor A direction |
+| IN2 | D14 | Pin 26 | Digital Output | Motor A direction |
+| EnA | D21 | Pin 11 | PWM Output | Motor A speed control |
+| IN3 | D27 | Pin 25 | Digital Output | Motor B direction |
+| IN4 | D26 | Pin 24 | Digital Output | Motor B direction |
+| EnB | D25 | Pin 23 | PWM Output | Motor B speed control |
 
 ### Battery Monitor
 
-| Function | ESP32 Header Pin | GPIO | Notes |
-|----------|-----------------|------|-------|
-| Battery ADC | Pin 5 | GPIO34 | R1/R2 voltage divider from J3 Pin 2 (8.8V). ADC1 — WiFi safe. Input-only ✅ |
+| Function | Label | ESP32 Pin | Notes |
+|----------|-------|-----------|-------|
+| Battery ADC | D34 | Pin 19 | R1/R2 voltage divider from J3 Pin 2 (8.8V). Input-only, ADC1 — WiFi safe ✅ |
 
 ### IR Line Sensors — JST-B (10-pin)
 
-| Sensor | GPIO | Type | Notes |
-|--------|------|------|-------|
-| IR Left | GPIO32 | Digital Input | ADC1 — WiFi/MQTT safe ✅ |
-| IR Center | GPIO33 | Digital Input | ADC1 — WiFi/MQTT safe ✅ |
-| IR Right | GPIO15 | Digital Input | Safe for digital input — IR sensors default LOW at boot ✅ |
+| Sensor | Label | ESP32 Pin | Type | Notes |
+|--------|-------|-----------|------|-------|
+| IR Left | D32 | Pin 21 | Digital Input | ADC1 — WiFi/MQTT safe ✅ |
+| IR Center | D33 | Pin 22 | Digital Input | ADC1 — WiFi/MQTT safe ✅ |
+| IR Right | D15 | Pin 3 | Digital Input | Mild strapping pin — IR defaults LOW at boot, no issue ✅ |
 
 ### Ultrasonic Sensors HC-SR04 (2021+) — JST-A (10-pin)
 
-| Sensor | TRIG GPIO | ECHO GPIO | Notes |
-|--------|----------|----------|-------|
-| Ultrasonic Left | GPIO22 | GPIO35 | Direct connection — no voltage divider needed ✅ |
-| Ultrasonic Center | GPIO23 | GPIO36 | Direct connection — no voltage divider needed ✅ |
-| Ultrasonic Right | GPIO18 | GPIO39 | Direct connection — no voltage divider needed ✅ |
+| Sensor | TRIG Label | TRIG Pin | ECHO Label | ECHO Pin | Notes |
+|--------|-----------|----------|-----------|----------|-------|
+| Ultrasonic Left | D22 | Pin 14 | D35 | Pin 20 | ECHO input-only ADC1 ✅ |
+| Ultrasonic Center | D23 | Pin 15 | D19 | Pin 10 | Direct connection ✅ |
+| Ultrasonic Right | D18 | Pin 9 | D4 | Pin 5 | D4 mild strapping — ECHO is input, defaults safe ✅ |
 
-> ✅ HC-SR04 2021+ version: ECHO pin outputs 3.3V logic — connects directly to ESP32 GPIO, no extra components required.
+> ✅ HC-SR04 2021+ version: ECHO outputs 3.3V logic — direct connection to ESP32, no voltage divider needed.
 
 ### JST Power Connector — J3 (2-pin JST)
 
@@ -87,29 +102,29 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 
 ### JST-A — Ultrasonic Sensors HC-SR04 2021+ (10-pin JST)
 
-| Pin | Signal | GPIO | Notes |
-|-----|--------|------|-------|
-| 1 | 5V shared | — | 5V rail (HC-SR04 requires 5V VCC) |
-| 2 | GND shared | GND | |
-| 3 | TRIG Left | GPIO22 | Digital output |
-| 4 | ECHO Left | GPIO35 | Direct connection ✅ |
-| 5 | TRIG Center | GPIO23 | Digital output |
-| 6 | ECHO Center | GPIO36 | Direct connection ✅ |
-| 7 | TRIG Right | GPIO18 | Digital output |
-| 8 | ECHO Right | GPIO39 | Direct connection ✅ |
-| 9 | — spare — | — | |
-| 10 | — spare — | — | |
+| Pin | Signal | Label | ESP32 Pin | Notes |
+|-----|--------|-------|-----------|-------|
+| 1 | 5V shared | — | — | 5V rail — HC-SR04 VCC |
+| 2 | GND shared | — | GND | |
+| 3 | TRIG Left | D22 | Pin 14 | Digital output |
+| 4 | ECHO Left | D35 | Pin 20 | Direct connection ✅ |
+| 5 | TRIG Center | D23 | Pin 15 | Digital output |
+| 6 | ECHO Center | D19 | Pin 10 | Direct connection ✅ |
+| 7 | TRIG Right | D18 | Pin 9 | Digital output |
+| 8 | ECHO Right | D4 | Pin 5 | Direct connection ✅ |
+| 9 | — spare — | — | — | |
+| 10 | — spare — | — | — | |
 
 ### JST-B — IR Line Sensors (10-pin)
 
-| Pin | Signal | GPIO | Notes |
-|-----|--------|------|-------|
-| 1 | 3.3V shared | — | 3V3 rail |
-| 2 | GND shared | GND | |
-| 3 | IR Left | GPIO32 | Digital input, ADC1 |
-| 4 | IR Center | GPIO33 | Digital input, ADC1 |
-| 5 | IR Right | GPIO15 | Digital input |
-| 6–10 | — spare — | — | Room to expand |
+| Pin | Signal | Label | ESP32 Pin | Notes |
+|-----|--------|-------|-----------|-------|
+| 1 | 3.3V shared | — | — | 3V3 rail |
+| 2 | GND shared | — | GND | |
+| 3 | IR Left | D32 | Pin 21 | Digital input, ADC1 |
+| 4 | IR Center | D33 | Pin 22 | Digital input, ADC1 |
+| 5 | IR Right | D15 | Pin 3 | Digital input |
+| 6–10 | — spare — | — | — | Room to expand |
 
 ---
 
@@ -120,7 +135,7 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
       │
     J3 JST (2-pin)
       │
-      ├─── R1/R2 voltage divider ─── GPIO34 (battery monitor ADC)
+      ├─── R1/R2 voltage divider ─── D34 Pin 19 (battery monitor ADC)
       │
       ├─── 220uF1 bulk capacitor (input filter)
       │
@@ -132,17 +147,12 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
    Output: 220uF4 capacitor
       │
      5V rail
+      ├─── HC-SR04 VCC (via JST-A Pin 1)
       │
-   ESP32 DEVKITC VIN → onboard LDO → 3.3V rail
-                                          │
-                                          ├─── HC-SR04 VCC 5V (via JST-A Pin 1)
-                                          └─── IR sensors VCC (via JST-B Pin 1)
+   ESP32-DEV VIN → onboard LDO → 3.3V rail
+                                      │
+                                      └─── IR sensors VCC (via JST-B Pin 1)
 ```
-
-- LM2596S-ADJ output set by trimpot RV1
-- SS34 Schottky diode D1 confirmed ✅
-- Input capacitor: 220µF bulk (100nF ceramic parallel planned)
-- Output capacitor: 220µF (low-ESR recommended)
 
 ---
 
@@ -150,10 +160,10 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 
 ### IR Line Sensors (x3)
 
-3 IR reflectance sensors positioned underneath the robot chassis for line detection. Digital output (3.3V modules).
+3 IR reflectance sensors under chassis for line detection. Digital output, 3.3V modules.
 
-- All GPIOs on ADC1 — WiFi/MQTT always active ✅
-- No level shifting needed on signal lines
+- All on ADC1 — WiFi/MQTT always active ✅
+- No level shifting needed ✅
 - Connected via JST-B
 
 **MQTT telemetry:** `robot/telemetry/ir`
@@ -163,12 +173,11 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 
 ### Ultrasonic Sensors HC-SR04 2021+ (x3)
 
-3 ultrasonic sensors for obstacle detection (left, center, right). 2021+ version confirmed — runs on 3.3V, ECHO outputs 3.3V logic.
+3 ultrasonic sensors for obstacle detection. 2021+ version — ECHO outputs 3.3V logic.
 
-- Powered from 5V rail ✅
+- Powered from 5V rail
 - TRIG: 3.3V ESP32 output sufficient ✅
-- ECHO: direct connection to ESP32 GPIO — no voltage divider needed ✅
-- ECHO GPIOs (35/36/39) are input-only ADC1 pins — perfect for ECHO signals ✅
+- ECHO: direct connection, no divider needed ✅
 
 **MQTT telemetry:** `robot/telemetry/ultrasonic`
 ```json
@@ -183,8 +192,8 @@ Dual H-bridge via L298N. Speed via PWM on EnA/EnB, direction via IN1–IN4.
 
 | Channel | Enable (PWM) | Dir Pin A | Dir Pin B |
 |---------|-------------|-----------|-----------|
-| Motor A | GPIO21 (EnA) | GPIO13 (IN1) | GPIO14 (IN2) |
-| Motor B | GPIO25 (EnB) | GPIO27 (IN3) | GPIO26 (IN4) |
+| Motor A | D21 Pin 11 (EnA) | D13 Pin 28 (IN1) | D14 Pin 26 (IN2) |
+| Motor B | D25 Pin 23 (EnB) | D27 Pin 25 (IN3) | D26 Pin 24 (IN4) |
 
 **Direction logic:**
 
@@ -210,7 +219,7 @@ Custom Android app (Android Studio) communicates with the ESP32 over MQTT. The b
                 │
            Local WiFi
                 │
-        [ESP32-DEVKITC]
+        [ESP32-DEV DEVKITC V1]
                 │
          Motors / Sensors
 ```
@@ -231,7 +240,7 @@ Custom Android app (Android Studio) communicates with the ESP32 over MQTT. The b
 
 ### Control Modes
 
-Toggled by a single button in the app UI. Accelerometer listener is registered/unregistered on toggle to preserve battery.
+Toggled by a single button in the app UI. Accelerometer listener registered/unregistered on toggle to preserve battery.
 
 **Mode 1 — Accelerometer tilt:**
 
@@ -249,8 +258,6 @@ Toggled by a single button in the app UI. Accelerometer listener is registered/u
  [ A ][ S ][ D ]
       [STP]
 ```
-
-Hold to move, release to stop. Speed adjustable via slider in both modes.
 
 ### Telemetry Dashboard
 
@@ -292,7 +299,7 @@ void publishTelemetry() {
 ### Rev 1 — 24 April 2026
 - R1/R2 = battery voltage monitor ADC divider — NOT part of LM2596 feedback network
 - LM2596 feedback set by RV1 trimpot — functional, fix planned for next revision
-- EnA originally on GPIO12 (strapping pin conflict) — corrected to GPIO21
+- EnA originally on GPIO12 (strapping pin conflict) — corrected to D21
 - L298N repurposed from module — correct Schottky diodes confirmed ✅
 - LM2596 diode D1 = SS34 Schottky ✅
 
@@ -301,7 +308,13 @@ void publishTelemetry() {
 - JST-B (10-pin) added for 3x IR line sensors
 - HC-SR04 confirmed as 2021+ version — no voltage dividers needed on ECHO lines ✅
 - Full GPIO assignments finalised and conflict-checked
-- Battery ADC confirmed on GPIO34 (ADC1, input-only)
+
+### Rev 3 — 27 April 2026
+- Corrected ESP32 footprint from ESP32-WROOM-32D to ESP32-DEV DEVKITC V1
+- All pin numbers updated to match DEVKITC V1 physical header layout
+- ECHO Center changed from D36 (non-existent on DEVKITC V1) → D19 Pin 10
+- ECHO Right changed from D39 (non-existent on DEVKITC V1) → D4 Pin 5
+- Full pinout re-verified against DEVKITC V1 — no conflicts found ✅
 
 ---
 
@@ -311,15 +324,15 @@ void publishTelemetry() {
 |----------|-------|--------|
 | 🔴 Critical | LM2596 trimpot-only FB risk — wiper failure could send 8.8V to ESP32. Fix: add R_upper 1kΩ (VOUT→FB) + R_lower 1kΩ (FB→GND), RV1 in series with R_lower for safe fine tuning | ⏳ Next revision |
 | 🟡 Warning | Low-ESR capacitor recommended on LM2596 220uF output | 🔍 To verify |
-| 🟢 OK | 100nF decoupling on ESP32 VCC not added — ESP32-DEVKITC has decoupling caps built onto the module ✅ | ✅ |
 | 🟢 OK | L298N diodes — repurposed from module, correct Schottky type ✅ | ✅ |
 | 🟢 OK | LM2596 D1 = SS34 Schottky ✅ | ✅ |
 | 🟢 OK | HC-SR04 2021+ — ECHO direct to GPIO, no voltage divider needed ✅ | ✅ |
-| 🟢 OK | All IR + ECHO GPIOs on ADC1 — WiFi/MQTT safe ✅ | ✅ |
+| 🟢 OK | All IR GPIOs on ADC1 — WiFi/MQTT safe ✅ | ✅ |
 | 🟢 OK | No strapping pin conflicts in final pinout ✅ | ✅ |
-| 🟢 OK | GPIO34 battery ADC — ADC1, input-only, WiFi safe ✅ | ✅ |
+| 🟢 OK | D34 battery ADC — ADC1, input-only, WiFi safe ✅ | ✅ |
 | 🟢 OK | J3 JST: Pin1=GND, Pin2=8.8V ✅ | ✅ |
-
+| 🟢 OK | 100nF decoupling on ESP32 VCC not added — ESP32-DEVKITC has decoupling caps built onto the module ✅ | ✅ |
+| 🟢 OK | D36/D39 non-existent on DEVKITC V1 — replaced with D19/D4 ✅ | ✅ |
 
 ---
 
@@ -328,44 +341,46 @@ void publishTelemetry() {
 | Date | Entry |
 |------|-------|
 | 24 Apr 2026 | Rev 1 schematic complete. ESP32 + LM2596 + L298N architecture established. |
-| 24 Apr 2026 | GPIO12 strapping conflict on EnA found and corrected → GPIO21. |
+| 24 Apr 2026 | D12 strapping conflict on EnA found and corrected → D21. |
 | 24 Apr 2026 | R1/R2 confirmed as battery ADC divider, not LM2596 feedback. |
 | 24 Apr 2026 | L298N repurposed from module — correct Schottky diodes confirmed. |
 | 24 Apr 2026 | Android MQTT app architecture defined — embedded broker, dual control modes, telemetry dashboard. |
-| 25 Apr 2026 | JST-A (ultrasonic) and J5 (IR sensors) connectors added to schematic and PCB. |
+| 25 Apr 2026 | JST-A (ultrasonic) and JST-B (IR sensors) connectors added to schematic and PCB. |
 | 25 Apr 2026 | Full GPIO conflict check performed — all pins verified clean. |
 | 25 Apr 2026 | HC-SR04 confirmed as 2021+ version — voltage dividers removed from design. |
 | 25 Apr 2026 | Final GPIO assignments locked in for all motors, sensors, and battery ADC. |
 | 25 Apr 2026 | LM2596 D1 = SS34 Schottky confirmed from schematic. |
 | 25 Apr 2026 | Schematic Rev 2 exported — JST-A and JST-B fully connected, all sensor GPIO traces complete. |
 | 27 Apr 2026 | PCB design completed. |
-| 27 Apr 2026 | Started Android app development — planning and working out details (to be discussed further). |
 | 27 Apr 2026 | PCB diode orientation cleaned up — all 8 L298N freewheeling diodes set to consistent A/C orientation. DRC run to verify no electrical conflicts. |
-| 27 Apr 2026 | Discovered incorrect ESP32 footprint used in PCB — was using ESP32-WROOM-32D header layout. Switching to correct ESP32-DEVKITC footprint and rewiring all GPIO connections in KiCad. |
-| 27 Apr 2026 | Updated to correct ESP32-DEVKITC symbol and footprint. Footprint files uploaded to GitHub repo. All GPIO connections to be rewired in KiCad accordingly. |
+| 27 Apr 2026 | Discovered incorrect ESP32 footprint — was using ESP32-WROOM-32D. Corrected to ESP32-DEV DEVKITC V1. |
+| 27 Apr 2026 | Updated to correct ESP32-DEVKITC V1 symbol and footprint. Footprint files uploaded to GitHub repo. |
+| 27 Apr 2026 | All pin numbers updated to DEVKITC V1 physical header layout. D36/D39 non-existent on this board — replaced with D19 (Pin 10) and D4 (Pin 5). |
+| 27 Apr 2026 | Full pinout re-verified against DEVKITC V1 — 16 GPIOs used, 0 conflicts, 9 spare pins remaining. |
+| 27 Apr 2026 | Started Android app development — planning and working out details (to be discussed further). |
 
 ---
 
 ## 📌 Complete GPIO Map
 
-| GPIO | Header Pin | Function | Type | Notes |
-|------|-----------|----------|------|-------|
-| GPIO13 | Pin 15 | Motor A IN1 | Output | L298N |
-| GPIO14 | Pin 12 | Motor A IN2 | Output | L298N |
-| GPIO15 | — | IR Right | Input | JST-B |
-| GPIO18 | — | TRIG Right | Output | JST-A ultrasonic |
-| GPIO21 | Pin 33 | EnA Motor A | PWM Output | L298N |
-| GPIO22 | — | TRIG Left | Output | JST-A ultrasonic |
-| GPIO23 | — | TRIG Center | Output | JST-A ultrasonic |
-| GPIO25 | Pin 9 | EnB Motor B | PWM Output | L298N |
-| GPIO26 | Pin 10 | Motor B IN4 | Output | L298N |
-| GPIO27 | Pin 11 | Motor B IN3 | Output | L298N |
-| GPIO32 | — | IR Left | Input | ADC1, JST-B |
-| GPIO33 | — | IR Center | Input | ADC1, JST-B |
-| GPIO34 | Pin 5 | Battery ADC | Input | ADC1, input-only, R1/R2 divider |
-| GPIO35 | — | ECHO Left | Input | ADC1, input-only, JST-A |
-| GPIO36 | — | ECHO Center | Input | ADC1, input-only, JST-A |
-| GPIO39 | — | ECHO Right | Input | ADC1, input-only, JST-A |
+| Label | ESP32 Pin | Function | Type | Notes |
+|-------|-----------|----------|------|-------|
+| D4 | Pin 5 | ECHO Right | Input | JST-A ultrasonic |
+| D13 | Pin 28 | Motor A IN1 | Output | L298N |
+| D14 | Pin 26 | Motor A IN2 | Output | L298N |
+| D15 | Pin 3 | IR Right | Input | JST-B |
+| D18 | Pin 9 | TRIG Right | Output | JST-A ultrasonic |
+| D19 | Pin 10 | ECHO Center | Input | JST-A ultrasonic |
+| D21 | Pin 11 | EnA Motor A | PWM Output | L298N |
+| D22 | Pin 14 | TRIG Left | Output | JST-A ultrasonic |
+| D23 | Pin 15 | TRIG Center | Output | JST-A ultrasonic |
+| D25 | Pin 23 | EnB Motor B | PWM Output | L298N |
+| D26 | Pin 24 | Motor B IN4 | Output | L298N |
+| D27 | Pin 25 | Motor B IN3 | Output | L298N |
+| D32 | Pin 21 | IR Left | Input | ADC1, JST-B |
+| D33 | Pin 22 | IR Center | Input | ADC1, JST-B |
+| D34 | Pin 19 | Battery ADC | Input | ADC1, input-only, R1/R2 divider |
+| D35 | Pin 20 | ECHO Left | Input | ADC1, input-only, JST-A |
 
 ---
 
@@ -373,9 +388,9 @@ void publishTelemetry() {
 
 ### Full Schematic — Rev 2
 
-![Full Schematic](schematic.png)
+![Full Schematic](schematic_full.png)
 
-*ESP32-DEVKITC + LM2596S-ADJ power section + L298N motor driver + JST-A ultrasonic connector + J5 IR sensor connector*
+*ESP32-DEV DEVKITC V1 + LM2596S-ADJ power section + L298N motor driver + JST-A ultrasonic connector + JST-B IR sensor connector*
 
 ---
 
@@ -383,7 +398,7 @@ void publishTelemetry() {
 
 ![LM2596 Section](schematic_lm2596.png)
 
-*8.8V input via J3 JST (2-pin). R1/R2 voltage divider for battery ADC on GPIO34. LM2596S-ADJ with SS34 Schottky diode D1, inductor L, 220µF output capacitor, and RV1 trimpot setting 5V output via FB pin.*
+*8.8V input via J3 JST (2-pin). R1/R2 voltage divider for battery ADC on D34. LM2596S-ADJ with SS34 Schottky diode D1, inductor L, 220µF output capacitor, and RV1 trimpot setting 5V output via FB pin.*
 
 ---
 
@@ -391,4 +406,4 @@ void publishTelemetry() {
 
 ![L298N Section](schematic_l298n.png)
 
-*L298N dual H-bridge with Schottky freewheeling diodes on all outputs. Motor A: IN1 (GPIO13), IN2 (GPIO14), EnA (GPIO21). Motor B: IN3 (GPIO27), IN4 (GPIO26), EnB (GPIO25). Outputs to J1 and J2 screw terminals.*
+*L298N dual H-bridge with Schottky freewheeling diodes on all outputs. Motor A: IN1 (D13), IN2 (D14), EnA (D21). Motor B: IN3 (D27), IN4 (D26), EnB (D25). Outputs to J1 and J2 screw terminals.*
