@@ -464,6 +464,14 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 
 ## Android App — MQTT Vision Robot
 
+### App Screenshot
+
+![App Front](app_front.png)
+
+*Latest build of the MqttVisionRobot Android app*
+
+---
+
 ### Overview
 
 The Android app is built in **Kotlin** with **Android Studio**, targeting **API 29 (Android 10+)**. It uses a game-controller style UI with big WASD buttons and an accelerometer tilt mode. All communication with the ESP32 happens over **MQTT** on the local WiFi network.
@@ -566,7 +574,17 @@ Singleton that wraps the Eclipse Paho client. Handles:
 **Mode 2 — Accelerometer:**
 - Phone tilt maps to direction commands
 - Tilt threshold adjustable
+- **Dynamic speed control** — tilt angle maps to speed (gentle tilt = slow, hard tilt = full speed)
+- Speed slider updates in real time as you tilt
 - `SensorManager` listener registered only when this mode is active — saves battery
+
+| Tilt Magnitude | Speed |
+|---------------|-------|
+| Flat / stop | 0 |
+| Gentle (< 5G) | 100 |
+| Medium (< 7G) | 170 |
+| Strong (< 9G) | 210 |
+| Full tilt | 255 |
 
 A single **MODE** button toggles between them. The button label updates to show the active mode.
 
@@ -663,6 +681,8 @@ void loop() {
 | Date | Entry |
 |------|-------|
 | 27 Apr 2026 | Android app architecture fully planned. Kotlin, API 29+, game controller UI, Moquette embedded broker, Eclipse Paho client. |
+| 27 Apr 2026 | App built and running. WASD + tilt mode, telemetry panel, speed slider, connection status. |
+| 27 Apr 2026 | Dynamic tilt speed control added — tilt angle controls speed dial automatically in accelerometer mode. |
 
 ---
 
