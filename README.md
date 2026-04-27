@@ -1,6 +1,3 @@
-Schematic needs updating!
--> 5V input needs connecting to output of LM2596 
-
 # 🤖 ESP32 Line Sensing Robot
 
 A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor control via L298N, 3 IR line sensors, 3 ultrasonic distance sensors, and an LM2596S-ADJ buck converter powered by a 2S LiPo (8.8V). Controlled via a custom **Android MQTT app** built in Android Studio, with full telemetry monitoring and dual control modes (accelerometer tilt + WASD buttons).
@@ -316,7 +313,7 @@ void publishTelemetry() {
 | 🔴 Critical | Fix: R_upper 1kΩ (VOUT→FB) + R_lower 1kΩ (FB→GND), RV1 in series with R_lower | ⏳ Next revision |
 | 🟡 Warning | Low-ESR capacitor recommended on LM2596 220uF output | 🔍 To verify |
 | 🟡 Warning | 100nF ceramic in parallel with 220uF1 input capacitor | ⏳ Planned |
-| 🟡 Warning | 100nF ceramic decoupling on ESP32 VCC pins | ⏳ Planned |
+| 🟢 OK | 100nF decoupling on ESP32 VCC not added — ESP32-DEVKITC has decoupling caps built onto the module ✅ | ✅ |
 | 🟢 OK | L298N diodes — repurposed from module, correct Schottky type ✅ | ✅ |
 | 🟢 OK | LM2596 D1 = SS34 Schottky ✅ | ✅ |
 | 🟢 OK | HC-SR04 2021+ — ECHO direct to GPIO, no voltage divider needed ✅ | ✅ |
@@ -382,7 +379,7 @@ With fixed resistors as base, a trimpot wiper failure cannot cause a catastrophi
 
 ### Full Schematic — Rev 2
 
-![Full Schematic](schematic.png)
+![Full Schematic](schematic_full.png)
 
 *ESP32-DEVKITC + LM2596S-ADJ power section + L298N motor driver + JST-A ultrasonic connector + J5 IR sensor connector*
 
