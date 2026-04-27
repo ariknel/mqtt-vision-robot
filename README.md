@@ -349,6 +349,8 @@ With fixed resistors as base, a trimpot wiper failure cannot cause a catastrophi
 | 25 Apr 2026 | Final GPIO assignments locked in for all motors, sensors, and battery ADC. |
 | 25 Apr 2026 | LM2596 D1 = SS34 Schottky confirmed from schematic. |
 | 25 Apr 2026 | Schematic Rev 2 exported — JST-A and JST-B fully connected, all sensor GPIO traces complete. |
+| 27 Apr 2026 | PCB design completed. |
+| 27 Apr 2026 | Started Android app development — planning and working out details (to be discussed further). |
 
 ---
 
