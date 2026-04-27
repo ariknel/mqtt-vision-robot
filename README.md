@@ -24,7 +24,7 @@ A line-following robot built around the **ESP32-DEVKITC**, featuring dual motor 
 
 | Component | Part | Notes |
 |-----------|------|-------|
-| MCU | ESP32-DEVKITC | Dual-core, WiFi/BT capable |
+| MCU | ESP32-DEVKITC (ESP32-WROOM-32D module) | Dual-core, WiFi/BT capable |
 | Motor Driver | L298N | Repurposed from L298N module — correct Schottky diodes confirmed ✅ |
 | Buck Converter | LM2596S-ADJ | 8.8V → 5V, set via RV1 trimpot. Diode: SS34 Schottky ✅ |
 | Power Input | 2S LiPo | 8.8V via JST J3 (2-pin) connector |
@@ -340,6 +340,9 @@ void publishTelemetry() {
 | 25 Apr 2026 | Schematic Rev 2 exported — JST-A and JST-B fully connected, all sensor GPIO traces complete. |
 | 27 Apr 2026 | PCB design completed. |
 | 27 Apr 2026 | Started Android app development — planning and working out details (to be discussed further). |
+| 27 Apr 2026 | PCB diode orientation cleaned up — all 8 L298N freewheeling diodes set to consistent A/C orientation. DRC run to verify no electrical conflicts. |
+| 27 Apr 2026 | Discovered incorrect ESP32 footprint used in PCB — was using ESP32-WROOM-32D header layout. Switching to correct ESP32-DEVKITC footprint and rewiring all GPIO connections in KiCad. |
+| 27 Apr 2026 | Updated to correct ESP32-DEVKITC symbol and footprint. Footprint files uploaded to GitHub repo. All GPIO connections to be rewired in KiCad accordingly. |
 
 ---
 
