@@ -345,6 +345,24 @@ Placed manually following these principles:
 - **J1/J2 screw terminals** — bottom edge for easy motor wire access
 - **J3 power connector** — left edge, close to LM2596 input
 
+### Step 2b — Design Rules (KiCad Board Setup)
+
+Configured via **File → Board Setup → Design Rules → Net Classes**:
+
+| Netclass | Track Width | Clearance | Applied To |
+|----------|------------|-----------|------------|
+| Default | 0.25mm | 0.2mm | All signal traces (GPIO, sensors, PWM) |
+| Power | 1.0mm | 0.8mm | GND, 8.8V, 5V, motor output nets |
+
+**Power netclass assigned to:**
+- `GND`
+- `Net-(J3-Pin_2)` — 8.8V input
+- `Net-(JST-A1-Pin_1)` — 5V rail
+- `Net-(J1-Pin_1)`, `Net-(J1-Pin_2)` — Motor A outputs
+- `Net-(J2-Pin_1)`, `Net-(J2-Pin_2)` — Motor B outputs
+
+---
+
 ### Step 3 — Board Outline (Edge.Cuts)
 
 Rectangle drawn on `Edge.Cuts` layer with ~5mm margin around all components using **Place → Rectangle**.
@@ -360,14 +378,20 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 - 0 footprint errors ✅
 - 69 unconnected pads — expected pre-routing
 
-### Step 6 — Auto-Routing with FreeRouter ⏳
+### Step 6 — Auto-Routing with FreeRouter ✅
 
 1. **File → Export → Specctra DSN**
 2. Open in FreeRouter, run auto-router
 3. **File → Import → Specctra Session**
 4. Review traces, re-run DRC
 
+![Routed PCB](pcb_routed.png)
+
+*Fully routed 2-layer PCB — red = F.Cu, blue = B.Cu, thick traces = Power netclass (0.8mm), thin traces = Default netclass (0.25mm)*
+
 ### Step 7 — Gerber Export & Manufacturing ⏳
+
+> Board is production ready — DRC passes with 0 errors, 2 ignorable mounting hole warnings.
 
 1. **File → Plot** → Gerber format
 2. Export copper layers, silkscreen, soldermask, Edge.Cuts + drill files
@@ -411,4 +435,11 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 | 27 Apr 2026 | Incorrect ESP32 footprint (WROOM-32D) found and corrected → ESP32-DEV DEVKITC V1. Footprints uploaded to repo. |
 | 27 Apr 2026 | All pin numbers updated to DEVKITC V1 layout. D36/D39 replaced with D19/D4. 16 GPIOs used, 0 conflicts, 9 spare. |
 | 27 Apr 2026 | DRC run — 3 silkscreen warnings fixed. 0 footprint errors. |
+| 27 Apr 2026 | JST connector found to be placed upside down — fixed by flipping in KiCad PCB editor. |
+| 27 Apr 2026 | Mounting hole references fixed from numeric (1,2,3,4) to H1,H2,H3,H4 to resolve SES import error. |
+| 27 Apr 2026 | FreeRouter completed with 0 unrouted connections. Power netclass: 0.8mm trace, 0.7mm clearance. Signal: 0.25mm trace, 0.2mm clearance. |
+| 27 Apr 2026 | SES imported into KiCad. DRC shows 0 unconnected pads, 0 footprint errors. 28 violations to fix: decorative text on F.Cu layer causing trace conflicts, IC pad spacing vs power clearance rule, 3 dangling track stubs. |
+| 27 Apr 2026 | Fixed all DRC errors: moved decorative text to F.Silkscreen, reduced Power clearance to 0.5mm to match IC footprint pad spacing, deleted 3 dangling track stubs. |
+| 27 Apr 2026 | PCB routing complete. Final DRC: 0 errors, 2 warnings (mounting hole library mismatch — ignorable). Board is production ready. |
+| 27 Apr 2026 | GitHub URL added to PCB silkscreen: github.com/ariknel/mqtt-vision-robot |
 | 27 Apr 2026 | Android app development started — planning and details to be discussed. |
