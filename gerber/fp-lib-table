@@ -1,0 +1,5 @@
+(fp_lib_table
+	(version 7)
+	(lib (name "M7") (type "KiCad") (uri "C:/Users/Arik/Desktop/M7/M7.pretty") (options "") (descr ""))
+	(lib (name "Library") (type "KiCad") (uri "C:/Users/Arik/Desktop/M7/Library.pretty") (options "") (descr ""))
+)
