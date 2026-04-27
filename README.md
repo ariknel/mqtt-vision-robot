@@ -459,3 +459,207 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 | 27 Apr 2026 | Power source clarified: custom 2S 18650 battery pack (8.4V fully charged), charged via Hailege 2S USB-C BMS boost charger module. |
 | 27 Apr 2026 | Gerber files exported from KiCad and uploaded to `/gerber` folder in GitHub repo. Board ready for manufacturing. |
 | 27 Apr 2026 | Android app development started — planning and details to be discussed. |
+
+---
+
+## Android App — MQTT Vision Robot
+
+### Overview
+
+The Android app is built in **Kotlin** with **Android Studio**, targeting **API 29 (Android 10+)**. It uses a game-controller style UI with big WASD buttons and an accelerometer tilt mode. All communication with the ESP32 happens over **MQTT** on the local WiFi network.
+
+The key design decision is simplicity and reliability: the broker runs embedded inside the app as a foreground service, the MQTT client reconnects automatically, and all sensor data flows in one direction (ESP32 → App) while all control commands flow the other way (App → ESP32).
+
+---
+
+### How It Connects to the ESP32
+
+```
+[Android Phone]
+      │
+      ├── Moquette MQTT Broker (foreground service, port 1883)
+      │         │
+      │         └── Eclipse Paho MQTT Client (subscribes + publishes)
+      │
+      │   Local WiFi Network
+      │
+[ESP32-DEVKITC V1]
+      │
+      └── PubSubClient (connects to phone IP:1883)
+            ├── Subscribes: robot/control/#
+            └── Publishes:  robot/telemetry/#
+```
+
+The phone's IP address on the local network is the broker address. The ESP32 connects to that IP on port 1883. No internet, no cloud, no external server — everything runs locally.
+
+**Connection flow:**
+1. App launches → Moquette broker starts as foreground service on port 1883
+2. Eclipse Paho client connects to `localhost:1883`
+3. ESP32 powers on → connects to WiFi → connects to broker at phone's IP
+4. Handshake complete → telemetry starts flowing, controls start working
+
+---
+
+### How Information Flows
+
+#### ESP32 → App (Telemetry)
+
+The ESP32 publishes sensor readings every ~100ms to these topics:
+
+| Topic | Payload | Example |
+|-------|---------|---------|
+| `robot/telemetry/ir` | JSON | `{"left":0,"center":1,"right":0}` |
+| `robot/telemetry/ultrasonic` | JSON | `{"left":24,"center":8,"right":31}` |
+| `robot/telemetry/battery` | Float string | `8.21` |
+| `robot/telemetry/speed` | JSON | `{"a":180,"b":180}` |
+
+The app subscribes to `robot/telemetry/#` (wildcard) — any telemetry topic hits the same callback, which parses the JSON and updates the UI on the main thread.
+
+#### App → ESP32 (Control)
+
+The app publishes commands when the user interacts:
+
+| Topic | Payload | Trigger |
+|-------|---------|---------|
+| `robot/control/move` | `forward` / `back` / `left` / `right` / `stop` | Button press / tilt |
+| `robot/control/speed` | `0`–`255` | Speed slider |
+| `robot/control/mode` | `manual` / `line_follow` | Mode toggle |
+
+Commands are published with **QoS 0** (fire and forget) — fast and no overhead. Telemetry is also QoS 0. For a robot this is correct: a missed packet is irrelevant because the next one arrives within 100ms anyway.
+
+---
+
+### App Structure
+
+```
+MqttVisionRobot/
+├── MainActivity.kt           — entry point, navigation, broker lifecycle
+├── MqttBrokerService.kt      — Moquette broker as Android foreground service
+├── MqttClientManager.kt      — Eclipse Paho client, all pub/sub logic
+├── ControlFragment.kt        — game controller UI
+├── TelemetryFragment.kt      — live sensor dashboard
+└── ui/
+    ├── WasdView.kt           — custom WASD button layout
+    └── TelemetryCard.kt      — reusable sensor card widget
+```
+
+---
+
+### Key Components
+
+#### MqttBrokerService
+Runs Moquette as an Android **foreground service** — this keeps the broker alive even if the app goes to the background. Shows a persistent notification. Starts when the app opens, stops when the app is fully closed.
+
+#### MqttClientManager
+Singleton that wraps the Eclipse Paho client. Handles:
+- Auto-reconnect on connection loss
+- Single callback entry point for all incoming messages
+- Clean publish method used everywhere in the app
+
+#### ControlFragment — Two Modes
+
+**Mode 1 — WASD (default):**
+- W / A / S / D buttons + central STOP button
+- Hold to move, release sends `stop`
+- Speed slider sets PWM value (0–255)
+
+**Mode 2 — Accelerometer:**
+- Phone tilt maps to direction commands
+- Tilt threshold adjustable
+- `SensorManager` listener registered only when this mode is active — saves battery
+
+A single **MODE** button toggles between them. The button label updates to show the active mode.
+
+#### TelemetryFragment
+Subscribes to all `robot/telemetry/#` topics and displays:
+- IR sensor indicators (3 circles, filled = line detected)
+- Ultrasonic distance readouts (Left / Center / Right in cm)
+- Battery voltage bar + voltage text
+- Motor speed (PWM A and B)
+- MQTT connection status indicator
+
+---
+
+### Dependencies
+
+```kotlin
+// build.gradle (app)
+
+// MQTT Broker — Moquette embedded
+implementation("io.moquette:moquette-broker:0.17")
+
+// MQTT Client — Eclipse Paho
+implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
+implementation("org.eclipse.paho:org.eclipse.paho.android.service:1.1.1")
+
+// Coroutines — async broker start
+implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+```
+
+---
+
+### ESP32 Firmware — Connection Side
+
+```cpp
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+const char* ssid        = "YOUR_WIFI_SSID";
+const char* password    = "YOUR_WIFI_PASSWORD";
+const char* mqtt_server = "PHONE_LOCAL_IP"; // e.g. 192.168.1.x
+
+WiFiClient   espClient;
+PubSubClient client(espClient);
+
+void reconnect() {
+  while (!client.connected()) {
+    if (client.connect("ESP32Robot")) {
+      client.subscribe("robot/control/#");
+    }
+    delay(500);
+  }
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  String msg = String((char*)payload).substring(0, length);
+  if (String(topic) == "robot/control/move")  handleMove(msg);
+  if (String(topic) == "robot/control/speed") setSpeed(msg.toInt());
+  if (String(topic) == "robot/control/mode")  setMode(msg);
+}
+
+void loop() {
+  if (!client.connected()) reconnect();
+  client.loop();
+  publishTelemetry(); // every ~100ms
+}
+```
+
+---
+
+### UI Layout
+
+```
+┌─────────────────────────────────┐
+│  🟢 CONNECTED      [MODE: WASD] │  ← status + mode toggle
+├─────────────────────────────────┤
+│                                 │
+│           [ W ]                 │
+│      [ A ][ ■ ][ D ]            │  ← WASD + STOP (big touch targets)
+│           [ S ]                 │
+│                                 │
+│   Speed  [━━━━━━░░░░]  180      │  ← speed slider
+├─────────────────────────────────┤
+│  IR   ◉  ◉  ○                   │  ← telemetry panel
+│  US   12cm  8cm  24cm           │
+│  BAT  8.1V  [████████░░]        │
+│  MTR  A:180  B:180              │
+└─────────────────────────────────┘
+```
+
+---
+
+### Build Log — App
+
+| Date | Entry |
+|------|-------|
+| 27 Apr 2026 | Android app architecture fully planned. Kotlin, API 29+, game controller UI, Moquette embedded broker, Eclipse Paho client. |
