@@ -385,7 +385,7 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 3. **File → Import → Specctra Session**
 4. Review traces, re-run DRC
 
-![Routed PCB](pcb_routed1.png)
+![Routed PCB](pcb_routed.png)
 
 *Fully routed 2-layer PCB — red = F.Cu, blue = B.Cu, thick traces = Power netclass (0.8mm), thin traces = Default netclass (0.25mm)*
 
