@@ -62,7 +62,7 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 
 ## PCB Layout
 
-![PCB Layout](pcb_layout.png)
+![PCB Layout](pcb_layout1.png)
 
 *KiCad PCB layout — to be updated after routing is complete.*
 
