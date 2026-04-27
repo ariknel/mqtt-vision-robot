@@ -38,6 +38,98 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 
 ---
 
+## PCB Development Process
+
+This project uses **KiCad** for schematic capture and PCB layout. Below is a log of the full design process.
+
+---
+
+### Step 1 — Schematic Design
+
+The schematic was built in KiCad's schematic editor. Several components were not available in KiCad's default libraries and had to be imported manually:
+
+- ESP32-DEVKITC V1
+- LM2596S-ADJ
+- L298N
+- JST connectors (JST-A, JST-B)
+
+These custom footprints have been added to the repository so the project can be opened on any machine without missing library errors.
+
+📁 **Custom footprints are located in the `/footprints` folder of this repo.**
+
+![Schematic](schematic_full.png)
+
+---
+
+### Step 2 — Component Placement
+
+After completing the schematic, components were imported into the PCB editor and placed manually. Placement decisions were guided by the following principles:
+
+- **LM2596 power section** — input cap, IC, inductor, diode and output cap placed in a tight left-to-right cluster to minimize the switching loop and reduce EMI
+- **L298N motor driver** — placed centrally with freewheeling diodes grouped directly around each output pair
+- **ESP32-DEVKITC** — centered on the board with signal pins facing the connectors to minimize trace crossings
+- **JST-A (ultrasonic) and JST-B (IR)** — placed on the right board edge for easy cable access
+- **J1/J2 motor screw terminals** — placed on the bottom edge for easy motor wire access
+- **J3 JST power connector** — placed on the left edge, close to LM2596 input
+
+![PCB Layout](pcb_layout.png)
+
+---
+
+### Step 3 — Board Outline (Edge.Cuts)
+
+The board outline was drawn in KiCad using the **Edge.Cuts layer**:
+
+1. Selected `Edge.Cuts` layer in the PCB editor
+2. Used **Place → Rectangle** to draw the outline around all components
+3. Added ~5mm margin on all sides
+4. Board outline verified via **Inspect → Design Rules Checker (DRC)**
+
+---
+
+### Step 4 — Mounting Holes
+
+4x mounting holes added in the PCB editor using the **MountingHole_4.3x6.2mm_M4_Pad** footprint, placed in each corner of the board for secure chassis mounting.
+
+---
+
+### Step 5 — Design Rules Check (DRC)
+
+DRC was run via **Inspect → Design Rules Checker → Run DRC** after each major change to verify:
+
+- No footprint errors
+- No unconnected nets beyond expected ratsnest
+- No clearance violations
+- Board outline present on Edge.Cuts
+
+---
+
+### Step 6 — Auto-Routing with FreeRouter
+
+> ⏳ In progress
+
+Routing is being handled by **FreeRouter** (external auto-router compatible with KiCad):
+
+1. Export board from KiCad: **File → Export → Specctra DSN**
+2. Open DSN file in FreeRouter and run auto-router
+3. Import completed routing back into KiCad: **File → Import → Specctra Session**
+4. Review all traces, verify clearances, re-run DRC
+
+---
+
+### Step 7 — Gerber Export & Manufacturing
+
+> ⏳ Not yet started
+
+Once routing is complete and DRC passes clean:
+
+1. **File → Plot** → select Gerber format
+2. Export all copper layers, silkscreen, soldermask, Edge.Cuts
+3. Generate drill files
+4. Submit to PCB manufacturer (e.g. JLCPCB, PCBWay)
+
+---
+
 ## PCB Layout
 
 > 📷 *PCB layout image — to be added*
@@ -45,9 +137,101 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 ---
 
 
+## PCB Development Process
+
+This project uses **KiCad** for schematic capture and PCB layout. Below is a log of the full design process.
+
+---
+
+### Step 1 — Schematic Design
+
+The schematic was built in KiCad's schematic editor. Several components were not available in KiCad's default libraries and had to be imported manually:
+
+- ESP32-DEVKITC V1
+- LM2596S-ADJ
+- L298N
+- JST connectors (JST-A, JST-B)
+
+These custom footprints have been added to the repository so the project can be opened on any machine without missing library errors.
+
+📁 **Custom footprints are located in the `/footprints` folder of this repo.**
+
+![Schematic](schematic_full.png)
+
+---
+
+### Step 2 — Component Placement
+
+After completing the schematic, components were imported into the PCB editor and placed manually. Placement decisions were guided by the following principles:
+
+- **LM2596 power section** — input cap, IC, inductor, diode and output cap placed in a tight left-to-right cluster to minimize the switching loop and reduce EMI
+- **L298N motor driver** — placed centrally with freewheeling diodes grouped directly around each output pair
+- **ESP32-DEVKITC** — centered on the board with signal pins facing the connectors to minimize trace crossings
+- **JST-A (ultrasonic) and JST-B (IR)** — placed on the right board edge for easy cable access
+- **J1/J2 motor screw terminals** — placed on the bottom edge for easy motor wire access
+- **J3 JST power connector** — placed on the left edge, close to LM2596 input
+
+![PCB Layout](pcb_layout.png)
+
+---
+
+### Step 3 — Board Outline (Edge.Cuts)
+
+The board outline was drawn in KiCad using the **Edge.Cuts layer**:
+
+1. Selected `Edge.Cuts` layer in the PCB editor
+2. Used **Place → Rectangle** to draw the outline around all components
+3. Added ~5mm margin on all sides
+4. Board outline verified via **Inspect → Design Rules Checker (DRC)**
+
+---
+
+### Step 4 — Mounting Holes
+
+4x mounting holes added in the PCB editor using the **MountingHole_4.3x6.2mm_M4_Pad** footprint, placed in each corner of the board for secure chassis mounting.
+
+---
+
+### Step 5 — Design Rules Check (DRC)
+
+DRC was run via **Inspect → Design Rules Checker → Run DRC** after each major change to verify:
+
+- No footprint errors
+- No unconnected nets beyond expected ratsnest
+- No clearance violations
+- Board outline present on Edge.Cuts
+
+---
+
+### Step 6 — Auto-Routing with FreeRouter
+
+> ⏳ In progress
+
+Routing is being handled by **FreeRouter** (external auto-router compatible with KiCad):
+
+1. Export board from KiCad: **File → Export → Specctra DSN**
+2. Open DSN file in FreeRouter and run auto-router
+3. Import completed routing back into KiCad: **File → Import → Specctra Session**
+4. Review all traces, verify clearances, re-run DRC
+
+---
+
+### Step 7 — Gerber Export & Manufacturing
+
+> ⏳ Not yet started
+
+Once routing is complete and DRC passes clean:
+
+1. **File → Plot** → select Gerber format
+2. Export all copper layers, silkscreen, soldermask, Edge.Cuts
+3. Generate drill files
+4. Submit to PCB manufacturer (e.g. JLCPCB, PCBWay)
+
+---
+
 ## PCB Layout
 
-![PCB Layout](3d.PNG)
+![PCB Layout](pcb_layout.png)
 
 *KiCad PCB layout — ESP32-DEVKITC V1, LM2596S-ADJ power section, L298N motor driver, JST-A ultrasonic connector, JST-B IR sensor connector.*
 
