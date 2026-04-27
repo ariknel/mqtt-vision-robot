@@ -663,3 +663,26 @@ void loop() {
 | Date | Entry |
 |------|-------|
 | 27 Apr 2026 | Android app architecture fully planned. Kotlin, API 29+, game controller UI, Moquette embedded broker, Eclipse Paho client. |
+
+---
+
+## Chassis — 3D Printed
+
+The robot chassis is designed in **Autodesk Inventor** and 3D printed. The STEP file is included in the repo for reference and assembly.
+
+📁 **STEP file located in the root of this repo.**
+
+### Design Notes
+
+- Designed to fit the custom PCB, 2S 18650 battery pack and all sensor mounts
+- IR sensors mounted on the underside facing the ground for line detection
+- HC-SR04 ultrasonic sensors mounted on the front (left, center, right)
+- Motor mounts integrated into the chassis base
+- PCB sits on standoffs with M4 mounting holes matching the PCB corner holes
+- Battery compartment accessible from the bottom
+
+### Build Log — Chassis
+
+| Date | Entry |
+|------|-------|
+| 27 Apr 2026 | Chassis design started in Autodesk Inventor. STEP file uploaded to GitHub repo. |
