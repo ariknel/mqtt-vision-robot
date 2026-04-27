@@ -464,14 +464,6 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 
 ## Android App — MQTT Vision Robot
 
-### App Screenshot
-
-![App Front](app_front.png)
-
-*Latest build of the MqttVisionRobot Android app*
-
----
-
 ### Overview
 
 The Android app is built in **Kotlin** with **Android Studio**, targeting **API 29 (Android 10+)**. It uses a game-controller style UI with big WASD buttons and an accelerometer tilt mode. All communication with the ESP32 happens over **MQTT** on the local WiFi network.
@@ -656,23 +648,7 @@ void loop() {
 
 ### UI Layout
 
-```
-┌─────────────────────────────────┐
-│  🟢 CONNECTED      [MODE: WASD] │  ← status + mode toggle
-├─────────────────────────────────┤
-│                                 │
-│           [ W ]                 │
-│      [ A ][ ■ ][ D ]            │  ← WASD + STOP (big touch targets)
-│           [ S ]                 │
-│                                 │
-│   Speed  [━━━━━━░░░░]  180      │  ← speed slider
-├─────────────────────────────────┤
-│  IR   ◉  ◉  ○                   │  ← telemetry panel
-│  US   12cm  8cm  24cm           │
-│  BAT  8.1V  [████████░░]        │
-│  MTR  A:180  B:180              │
-└─────────────────────────────────┘
-```
+![App UI](app_front.png)
 
 ---
 
