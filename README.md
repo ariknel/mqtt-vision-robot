@@ -77,7 +77,7 @@ The board is intentionally minimal — just 4 solder test pad holes (H1–H4) fo
 
 ### OLED Board Schematic
 
-![OLED Schematic](oled_schematic.png)
+![OLED Schematic](oled_schematic.PNG)
 
 *J5 (4-pin JST) connects to H1 (GND), H2 (VCC), H3 (SCK), H4 (SDA) test pad holes. Wires run from these pads to the OLED module.*
 
@@ -89,7 +89,7 @@ The board is intentionally minimal — just 4 solder test pad holes (H1–H4) fo
 
 ### OLED Board 3D View
 
-![OLED 3D View](pcb_layout2.png)
+![OLED 3D View](pcb_layout2.PNG)
 
 *3D render of the OLED board showing component placement.*
 
