@@ -756,7 +756,7 @@ The robot chassis is designed in **Autodesk Inventor** and 3D printed. The STEP 
 
 📁 **STEP file located in the root of this repo.**
 
-![Chassis Assembly](assembly1.png)
+![Chassis Assembly](assembly1.PNG)
 
 *Autodesk Inventor assembly — PCB mounted on standoffs, motor mounts, battery compartment and sensor positions.*
 
