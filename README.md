@@ -565,18 +565,26 @@ Singleton that wraps the Eclipse Paho client. Handles:
 
 **Mode 2 — Accelerometer:**
 - Phone tilt maps to direction commands
-- Tilt threshold adjustable
-- **Dynamic speed control** — tilt angle maps to speed (gentle tilt = slow, hard tilt = full speed)
+- **Dynamic speed control** — linear ramp from 80 to 255 as tilt increases, smooth no jumping
 - Speed slider updates in real time as you tilt
 - `SensorManager` listener registered only when this mode is active — saves battery
+- **Forward triggers earlier** than left/right (offset 0.6) for natural feel
+- **Reverse guard** prevents accidental reverse — requires significantly more tilt, adjustable up to disabled
 
-| Tilt Magnitude | Speed |
-|---------------|-------|
-| Flat / stop | 0 |
-| Gentle (< 5G) | 100 |
-| Medium (< 7G) | 170 |
-| Strong (< 9G) | 210 |
-| Full tilt | 255 |
+**Tilt axis behaviour:**
+
+| Axis | Trigger threshold |
+|------|------------------|
+| Forward | sensitivity - 0.6 (triggers earlier) |
+| Left / Right | sensitivity |
+| Back (reverse) | sensitivity + reverseGuard |
+
+**In-app tilt sensitivity panel (collapsible, visible in tilt mode only):**
+
+| Slider | Effect |
+|--------|--------|
+| SENSITIVITY | Controls trigger threshold for all axes |
+| REVERSE GUARD | Extra tilt needed to trigger reverse — slide to max (10) to disable reverse entirely |
 
 A single **MODE** button toggles between them. The button label updates to show the active mode.
 
@@ -659,6 +667,10 @@ void loop() {
 | 27 Apr 2026 | Android app architecture fully planned. Kotlin, API 29+, game controller UI, Moquette embedded broker, Eclipse Paho client. |
 | 27 Apr 2026 | App built and running. WASD + tilt mode, telemetry panel, speed slider, connection status. |
 | 27 Apr 2026 | Dynamic tilt speed control added — tilt angle controls speed dial automatically in accelerometer mode. |
+| 27 Apr 2026 | Tilt controls improved: linear speed ramp, forward triggers earlier than sides, reverse guard prevents accidental reverse. |
+| 27 Apr 2026 | Tilt sensitivity panel added — 2 sliders (SENSITIVITY + REVERSE GUARD), collapsible, only visible in tilt mode. |
+| 27 Apr 2026 | Reverse guard range extended to 10 — at max value reverse is effectively disabled. |
+| 27 Apr 2026 | Full screen made scrollable — telemetry always visible regardless of sensitivity panel state. |
 
 ---
 
@@ -682,3 +694,260 @@ The robot chassis is designed in **Autodesk Inventor** and 3D printed. The STEP 
 | Date | Entry |
 |------|-------|
 | 27 Apr 2026 | Chassis design started in Autodesk Inventor. STEP file uploaded to GitHub repo. |
+
+---
+
+## ESP32 Firmware
+
+### Overview
+
+The ESP32 firmware handles all real-time robot logic: motor control, sensor reading, line following, object avoidance, MQTT communication and state management. It is written in **Arduino C++ (PlatformIO or Arduino IDE)**.
+
+---
+
+### Motor Wiring — Differential Drive
+
+The robot uses **2 motor pairs** in a differential drive configuration:
+
+| Side | L298N Channel | Direction Pins | Enable (PWM) |
+|------|--------------|---------------|--------------|
+| Motor A (Left pair) | Channel A | IN1 (D13), IN2 (D14) | EnA (D21) |
+| Motor B (Right pair) | Channel B | IN3 (D27), IN4 (D26) | EnB (D25) |
+
+Steering is achieved by varying the relative speed of left vs right motors:
+
+| Action | Left Motors | Right Motors |
+|--------|------------|--------------|
+| Forward | Full speed | Full speed |
+| Turn Left | Reduced speed | Full speed |
+| Turn Right | Full speed | Reduced speed |
+| Hard Left | Stop | Full speed |
+| Hard Right | Full speed | Stop |
+| Reverse | Full speed back | Full speed back |
+| Spin Left | Full back | Full forward |
+| Spin Right | Full forward | Full back |
+
+---
+
+### Line Following Logic
+
+3 IR sensors (left, center, right) provide 8 possible states:
+
+| IR Left | IR Center | IR Right | Action |
+|---------|-----------|---------|--------|
+| 0 | 1 | 0 | Forward — centered on line |
+| 0 | 1 | 1 | Curve right gently |
+| 1 | 1 | 0 | Curve left gently |
+| 0 | 0 | 1 | Turn right hard |
+| 1 | 0 | 0 | Turn left hard |
+| 1 | 1 | 1 | All sensors on line — forward |
+| 1 | 0 | 1 | Junction or crossing — forward |
+| 0 | 0 | 0 | **Line lost** → enter RECOVERING state |
+
+---
+
+### Object Avoidance Logic
+
+3 HC-SR04 sensors (left, center, right) provide distances in cm:
+
+```
+IF center < 20cm:
+    remember avoidance direction (left if left > right, else right)
+    enter AVOIDING state — curve around obstacle
+    track last visible line corner with outer sensor
+
+IF left < 15cm:
+    curve right
+
+IF right < 15cm:
+    curve left
+
+IF all three < 15cm:
+    stop → reverse 500ms → spin away from obstacle
+```
+
+---
+
+### State Machine
+
+The firmware runs a 3-state machine:
+
+```
+         ┌──────────────┐
+    ┌───▶│  FOLLOWING   │◀────────────┐
+    │    └──────┬───────┘             │
+    │           │ obstacle < 20cm     │ line found
+    │           ▼                     │
+    │    ┌──────────────┐             │
+    │    │   AVOIDING   │             │
+    │    └──────┬───────┘             │
+    │           │ line lost (0,0,0)   │ line found
+    │           ▼                     │
+    │    ┌──────────────┐             │
+    └────│  RECOVERING  │─────────────┘
+         └──────────────┘
+             │ no line after 5s
+             ▼
+           STOP and wait
+```
+
+**FOLLOWING** — normal line tracking using IR sensor table above.
+
+**AVOIDING** — obstacle detected. Robot curves around it while keeping the last active IR sensor (the outer edge of the line) active as long as possible. Tracks the corner of the line to re-join after obstacle is cleared.
+
+**RECOVERING** — all IR sensors lost the line (0,0,0):
+1. Remember last known direction (which side sensor was last active)
+2. Slow speed, turn that direction for up to 2 seconds
+3. If line found → back to FOLLOWING
+4. If not found after 2s → slow spin scanning full circle
+5. If still not found → stop and wait for manual override via MQTT
+
+---
+
+### MQTT Integration
+
+The ESP32 subscribes to `robot/control/#` and publishes to `robot/telemetry/#`:
+
+```cpp
+// Subscribe
+client.subscribe("robot/control/move");   // manual override
+client.subscribe("robot/control/speed");  // manual speed
+client.subscribe("robot/control/mode");   // "manual" or "line_follow"
+
+// Publish every ~100ms
+client.publish("robot/telemetry/ir",         irJson());
+client.publish("robot/telemetry/ultrasonic", ultrasonicJson());
+client.publish("robot/telemetry/battery",    batteryVoltage());
+client.publish("robot/telemetry/speed",      speedJson());
+```
+
+In `line_follow` mode the ESP32 ignores incoming move commands and runs the state machine autonomously. In `manual` mode the state machine is bypassed and MQTT move commands drive the motors directly.
+
+---
+
+### Firmware Structure
+
+```cpp
+// Main files
+main.cpp          — setup(), loop(), state machine
+motors.h/.cpp     — setMotors(), forward(), turnLeft() etc.
+sensors.h/.cpp    — readIR(), readUltrasonic(), readBattery()
+mqtt.h/.cpp       — connect(), publish(), callback()
+config.h          — pin definitions, thresholds, constants
+```
+
+---
+
+### Pin Definitions (config.h)
+
+```cpp
+// Motors
+#define IN1  13
+#define IN2  14
+#define ENA  21
+#define IN3  27
+#define IN4  26
+#define ENB  25
+
+// IR Sensors
+#define IR_LEFT   32
+#define IR_CENTER 33
+#define IR_RIGHT  15
+
+// Ultrasonic
+#define TRIG_LEFT   22
+#define ECHO_LEFT   35
+#define TRIG_CENTER 23
+#define ECHO_CENTER 19
+#define TRIG_RIGHT  18
+#define ECHO_RIGHT   4
+
+// Battery ADC
+#define BATTERY_PIN 34
+
+// Thresholds
+#define OBSTACLE_WARN_CM  20
+#define OBSTACLE_STOP_CM  15
+#define RECOVERY_TIMEOUT  2000  // ms before spinning
+#define SPIN_TIMEOUT      5000  // ms before giving up
+#define BASE_SPEED        180
+#define TURN_SPEED        120
+#define SLOW_SPEED        80
+```
+
+---
+
+### Build Log — Firmware
+
+| Date | Entry |
+|------|-------|
+| 27 Apr 2026 | Firmware architecture planned. Differential drive, 3-state machine (FOLLOWING / AVOIDING / RECOVERING), MQTT integration. To be built once PCB arrives or on breadboard. |
+
+---
+
+## OLED Display Board
+
+### Overview
+
+A separate small PCB was designed to mount a **128x32 I2C OLED display** (SSD1306) on top of the robot chassis. This board sits above the main PCB, hiding it and making use of the limited space available. It connects directly to the main board via the JST-B connector (IR sensor connector), using the spare pins 6–10.
+
+The board is intentionally minimal — just 4 solder test pad holes (H1–H4) for wire routing, a 4-pin JST connector (J5), and the OLED module. No active components. Gerber files are in the `/gerber` folder.
+
+### Why a Separate Board
+
+- Main PCB had no remaining space for an OLED footprint
+- Routing the display on top of the chassis hides the main PCB for a cleaner look
+- Easy to detach/replace independently from the main board
+- Keeps the display wiring short and organised
+
+### OLED Board Schematic
+
+![OLED Schematic](oled_schematic.png)
+
+*J5 (4-pin JST) connects to H1 (GND), H2 (VCC), H3 (SCK), H4 (SDA) test pad holes. Wires run from these pads to the OLED module.*
+
+### OLED Board PCB Layout
+
+![OLED PCB Layout](oled_pcb_layout.png)
+
+*Minimal PCB — 4 test pad holes + JST connector. Designed to sit on top of chassis.*
+
+### OLED Board 3D View
+
+![OLED 3D View](pcb_layout2.png)
+
+*3D render of the OLED board showing component placement.*
+
+### JST-B Pinout — OLED Connection
+
+The OLED board connects via JST-B (IR sensor connector) spare pins:
+
+| JST-B Pin | Signal | OLED Board | ESP32 GPIO |
+|-----------|--------|-----------|-----------|
+| 6 | — spare — | — | — |
+| 7 | SDA | H4 | D16 — Pin 27 |
+| 8 | SCK | H3 | D17 — Pin 28... |
+| 9 | VCC (5V) | H2 | — |
+| 10 | GND | H1 | — |
+
+> ⚠️ **Voltage check:** Verify your OLED module accepts 5V on VCC. Many SSD1306 modules have an onboard 3.3V regulator and accept 5V input. Bare modules may require 3.3V only.
+
+> ℹ️ **I2C remapping:** ESP32 default I2C pins (D21/D22) are both occupied. I2C is remapped in firmware using `Wire.begin(SDA_PIN, SCL_PIN)`.
+
+### OLED Display Features
+
+**Current:**
+- Battery voltage display
+- Connection status
+
+**Planned:**
+- IR sensor states
+- Ultrasonic distances
+- Current mode (MANUAL / LINE FOLLOW)
+- Robot state (FOLLOWING / AVOIDING / RECOVERING)
+
+### Build Log — OLED Board
+
+| Date | Entry |
+|------|-------|
+| 29 Apr 2026 | OLED board designed in KiCad. 128x32 SSD1306 I2C display. Separate PCB to mount on top of chassis. Connects via JST-B spare pins 7–10. Gerbers added to repo. |
