@@ -171,7 +171,7 @@ The OLED board connects via JST-B (IR sensor connector) spare pins:
 |--------|-----------|----------|-----------|----------|-------|
 | Ultrasonic Left | D22 | Pin 14 | D35 | Pin 20 | ECHO input-only ADC1 ✅ |
 | Ultrasonic Center | D23 | Pin 15 | D19 | Pin 10 | Direct connection ✅ |
-| Ultrasonic Right | D18 | Pin 9 | D4 | Pin 5 | Direct connection ✅ |
+| Ultrasonic Right | D18 | Pin 9 | D2 | Pin 4 | Direct connection ✅ |
 
 > ✅ HC-SR04 2021+: ECHO outputs 3.3V — direct connection, no voltage divider needed.
 
@@ -186,9 +186,9 @@ The OLED board connects via JST-B (IR sensor connector) spare pins:
 
 | Label | ESP32 Pin | Function | Type |
 |-------|-----------|----------|------|
-| D4 | Pin 5 | OLED SDA | I2C — shared with ECHO Right |
+| D2 | Pin 4 | ECHO Right | Input |
+| D4 | Pin 5 | OLED SDA | I2C |
 | D5 | Pin 8 | OLED SCL | I2C |
-| D4 | Pin 5 | ECHO Right | Input |
 | D13 | Pin 28 | Motor A IN1 | Output |
 | D14 | Pin 26 | Motor A IN2 | Output |
 | D15 | Pin 3 | IR Right | Input |
@@ -220,7 +220,7 @@ The OLED board connects via JST-B (IR sensor connector) spare pins:
 | 5 | TRIG Center | D23 | Pin 15 |
 | 6 | ECHO Center | D19 | Pin 10 |
 | 7 | TRIG Right | D18 | Pin 9 |
-| 8 | ECHO Right | D4 | Pin 5 |
+| 8 | ECHO Right | D2 | Pin 4 |
 | 9–10 | — spare — | — | — |
 
 ### JST-B — IR Line Sensors (10-pin)
@@ -523,6 +523,7 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 | 27 Apr 2026 | Incorrect ESP32 footprint (WROOM-32D) found and corrected → ESP32-DEV DEVKITC V1. Footprints uploaded to repo. |
 | 27 Apr 2026 | All pin numbers updated to DEVKITC V1 layout. D36/D39 replaced with D19/D4. 16 GPIOs used, 0 conflicts, 9 spare. |
 | 27 Apr 2026 | DRC run — 3 silkscreen warnings fixed. 0 footprint errors. |
+| 29 Apr 2026 | PCB Rev 3 — OLED board added. ECHO Right moved from D4 to D2 (Pin 4). D4 and D5 assigned to OLED SDA and SCL. JST-B pins 7–10 assigned to OLED board. |
 | 27 Apr 2026 | JST connector found to be placed upside down — fixed by flipping in KiCad PCB editor. |
 | 27 Apr 2026 | Mounting hole references fixed from numeric (1,2,3,4) to H1,H2,H3,H4 to resolve SES import error. |
 | 27 Apr 2026 | FreeRouter completed with 0 unrouted connections. Power netclass: 0.8mm trace, 0.7mm clearance. Signal: 0.25mm trace, 0.2mm clearance. |
@@ -755,6 +756,10 @@ The robot chassis is designed in **Autodesk Inventor** and 3D printed. The STEP 
 
 📁 **STEP file located in the root of this repo.**
 
+![Chassis Assembly](assembly1.png)
+
+*Autodesk Inventor assembly — PCB mounted on standoffs, motor mounts, battery compartment and sensor positions.*
+
 ### Design Notes
 
 - Designed to fit the custom PCB, 2S 18650 battery pack and all sensor mounts
@@ -769,6 +774,7 @@ The robot chassis is designed in **Autodesk Inventor** and 3D printed. The STEP 
 | Date | Entry |
 |------|-------|
 | 27 Apr 2026 | Chassis design started in Autodesk Inventor. STEP file uploaded to GitHub repo. |
+| 29 Apr 2026 | Chassis assembly rendered in Autodesk Inventor. Assembly image added to repo. |
 
 ---
 
@@ -935,7 +941,11 @@ config.h          — pin definitions, thresholds, constants
 #define TRIG_CENTER 23
 #define ECHO_CENTER 19
 #define TRIG_RIGHT  18
-#define ECHO_RIGHT   4
+#define ECHO_RIGHT   2
+
+// OLED I2C
+#define OLED_SDA     4
+#define OLED_SCL     5
 
 // Battery ADC
 #define BATTERY_PIN 34
