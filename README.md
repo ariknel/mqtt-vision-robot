@@ -58,6 +58,75 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 ![L298N Section](schematic_l298n.png)
 
 *L298N dual H-bridge with Schottky freewheeling diodes on all outputs. Motor A: IN1 (D13), IN2 (D14), EnA (D21). Motor B: IN3 (D27), IN4 (D26), EnB (D25). Outputs to J1 and J2 screw terminals.*
+---
+
+## OLED Display Board
+
+### Overview
+
+A separate small PCB was designed to mount a **128x32 I2C OLED display** (SSD1306) on top of the robot chassis. This board sits above the main PCB, hiding it and making use of the limited space available. It connects directly to the main board via the JST-B connector (IR sensor connector), using the spare pins 6–10.
+
+The board is intentionally minimal — just 4 solder test pad holes (H1–H4) for wire routing, a 4-pin JST connector (J5), and the OLED module. No active components. Gerber files are in the `/gerber` folder.
+
+### Why a Separate Board
+
+- Main PCB had no remaining space for an OLED footprint
+- Routing the display on top of the chassis hides the main PCB for a cleaner look
+- Easy to detach/replace independently from the main board
+- Keeps the display wiring short and organised
+
+### OLED Board Schematic
+
+![OLED Schematic](oled_schematic.png)
+
+*J5 (4-pin JST) connects to H1 (GND), H2 (VCC), H3 (SCK), H4 (SDA) test pad holes. Wires run from these pads to the OLED module.*
+
+### OLED Board PCB Layout
+
+![OLED PCB Layout](oled_pcb_layout.png)
+
+*Minimal PCB — 4 test pad holes + JST connector. Designed to sit on top of chassis.*
+
+### OLED Board 3D View
+
+![OLED 3D View](pcb_layout2.png)
+
+*3D render of the OLED board showing component placement.*
+
+### JST-B Pinout — OLED Connection
+
+The OLED board connects via JST-B (IR sensor connector) spare pins:
+
+| JST-B Pin | Signal | OLED Board | ESP32 GPIO |
+|-----------|--------|-----------|-----------|
+| 6 | — spare — | — | — |
+| 7 | SDA | H4 | D4 — Pin 5 |
+| 8 | SCK | H3 | D5 — Pin 8 |
+| 9 | VCC (5V) | H2 | — |
+| 10 | GND | H1 | — |
+
+> ⚠️ **Voltage check:** Verify your OLED module accepts 5V on VCC. Many SSD1306 modules have an onboard 3.3V regulator and accept 5V input. Bare modules may require 3.3V only.
+
+> ℹ️ **I2C remapping:** ESP32 default I2C pins (D21/D22) are both occupied. I2C is remapped in firmware using `Wire.begin(SDA_PIN, SCL_PIN)`.
+
+### OLED Display Features
+
+**Current:**
+- Battery voltage display
+- Connection status
+
+**Planned:**
+- IR sensor states
+- Ultrasonic distances
+- Current mode (MANUAL / LINE FOLLOW)
+- Robot state (FOLLOWING / AVOIDING / RECOVERING)
+
+### Build Log — OLED Board
+
+| Date | Entry |
+|------|-------|
+| 29 Apr 2026 | ECHO Right confirmed on D2 (Pin 4). D4 and D5 reserved for OLED SDA and SCL. |
+| 29 Apr 2026 | OLED board designed in KiCad. 128x32 SSD1306 I2C display. Separate PCB to mount on top of chassis. Connects via JST-B spare pins 7–10. Gerbers added to repo. |
 
 ---
 
@@ -117,6 +186,8 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 
 | Label | ESP32 Pin | Function | Type |
 |-------|-----------|----------|------|
+| D4 | Pin 5 | OLED SDA | I2C — shared with ECHO Right |
+| D5 | Pin 8 | OLED SCL | I2C |
 | D4 | Pin 5 | ECHO Right | Input |
 | D13 | Pin 28 | Motor A IN1 | Output |
 | D14 | Pin 26 | Motor A IN2 | Output |
@@ -161,7 +232,11 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 | 3 | IR Left | D32 | Pin 21 |
 | 4 | IR Center | D33 | Pin 22 |
 | 5 | IR Right | D15 | Pin 3 |
-| 6–10 | — spare — | — | — |
+| 6 | — spare — | — | — |
+| 7 | SDA (OLED) | D4 | Pin 5 |
+| 8 | SCK (OLED) | D5 | Pin 8 |
+| 9 | VCC 5V (OLED) | — | — |
+| 10 | GND (OLED) | GND | — |
 
 > VCC and GND are daisy-chained across all sensors within each connector group.
 
@@ -426,7 +501,7 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 | 🟢 OK | D34 battery ADC — ADC1, input-only, WiFi safe ✅ | ✅ |
 | 🟢 OK | J3 JST: Pin1=GND, Pin2=8.8V ✅ | ✅ |
 | 🟢 OK | 100nF decoupling not added — ESP32-DEVKITC has it built in ✅ | ✅ |
-| 🟢 OK | D36/D39 non-existent on DEVKITC V1 — replaced with D19/D4 ✅ | ✅ |
+| 🟢 OK | D36/D39 non-existent on DEVKITC V1 — replaced with D19 and D2 ✅ | ✅ |
 
 ---
 
@@ -882,72 +957,3 @@ config.h          — pin definitions, thresholds, constants
 | Date | Entry |
 |------|-------|
 | 27 Apr 2026 | Firmware architecture planned. Differential drive, 3-state machine (FOLLOWING / AVOIDING / RECOVERING), MQTT integration. To be built once PCB arrives or on breadboard. |
-
----
-
-## OLED Display Board
-
-### Overview
-
-A separate small PCB was designed to mount a **128x32 I2C OLED display** (SSD1306) on top of the robot chassis. This board sits above the main PCB, hiding it and making use of the limited space available. It connects directly to the main board via the JST-B connector (IR sensor connector), using the spare pins 6–10.
-
-The board is intentionally minimal — just 4 solder test pad holes (H1–H4) for wire routing, a 4-pin JST connector (J5), and the OLED module. No active components. Gerber files are in the `/gerber` folder.
-
-### Why a Separate Board
-
-- Main PCB had no remaining space for an OLED footprint
-- Routing the display on top of the chassis hides the main PCB for a cleaner look
-- Easy to detach/replace independently from the main board
-- Keeps the display wiring short and organised
-
-### OLED Board Schematic
-
-![OLED Schematic](oled_schematic.png)
-
-*J5 (4-pin JST) connects to H1 (GND), H2 (VCC), H3 (SCK), H4 (SDA) test pad holes. Wires run from these pads to the OLED module.*
-
-### OLED Board PCB Layout
-
-![OLED PCB Layout](oled_pcb_layout.png)
-
-*Minimal PCB — 4 test pad holes + JST connector. Designed to sit on top of chassis.*
-
-### OLED Board 3D View
-
-![OLED 3D View](pcb_layout2.png)
-
-*3D render of the OLED board showing component placement.*
-
-### JST-B Pinout — OLED Connection
-
-The OLED board connects via JST-B (IR sensor connector) spare pins:
-
-| JST-B Pin | Signal | OLED Board | ESP32 GPIO |
-|-----------|--------|-----------|-----------|
-| 6 | — spare — | — | — |
-| 7 | SDA | H4 | D16 — Pin 27 |
-| 8 | SCK | H3 | D17 — Pin 28... |
-| 9 | VCC (5V) | H2 | — |
-| 10 | GND | H1 | — |
-
-> ⚠️ **Voltage check:** Verify your OLED module accepts 5V on VCC. Many SSD1306 modules have an onboard 3.3V regulator and accept 5V input. Bare modules may require 3.3V only.
-
-> ℹ️ **I2C remapping:** ESP32 default I2C pins (D21/D22) are both occupied. I2C is remapped in firmware using `Wire.begin(SDA_PIN, SCL_PIN)`.
-
-### OLED Display Features
-
-**Current:**
-- Battery voltage display
-- Connection status
-
-**Planned:**
-- IR sensor states
-- Ultrasonic distances
-- Current mode (MANUAL / LINE FOLLOW)
-- Robot state (FOLLOWING / AVOIDING / RECOVERING)
-
-### Build Log — OLED Board
-
-| Date | Entry |
-|------|-------|
-| 29 Apr 2026 | OLED board designed in KiCad. 128x32 SSD1306 I2C display. Separate PCB to mount on top of chassis. Connects via JST-B spare pins 7–10. Gerbers added to repo. |
