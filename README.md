@@ -113,13 +113,13 @@ The OLED board connects via JST-B (IR sensor connector) spare pins:
 
 **Current:**
 - Battery voltage display
-- Connection status
-
-**Planned:**
-- IR sensor states
-- Ultrasonic distances
+- MQTT connection status
 - Current mode (MANUAL / LINE FOLLOW)
 - Robot state (FOLLOWING / AVOIDING / RECOVERING)
+
+**Planned:**
+- IR sensor states (3 indicators)
+- Ultrasonic distances (Left / Center / Right cm)
 
 ### Build Log — OLED Board
 
@@ -535,6 +535,16 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 | 27 Apr 2026 | Power source clarified: custom 2S 18650 battery pack (8.4V fully charged), charged via Hailege 2S USB-C BMS boost charger module. |
 | 27 Apr 2026 | Gerber files exported from KiCad and uploaded to `/gerber` folder in GitHub repo. Board ready for manufacturing. |
 | 27 Apr 2026 | Android app development started — planning and details to be discussed. |
+| 30 Apr 2026 | Final gerber review — main PCB and OLED board gerbers cross-checked. All layers verified (F.Cu, B.Cu, F.Silkscreen, B.Silkscreen, F.Mask, B.Mask, Edge.Cuts, drill). |
+| 2 May 2026 | Main PCB and OLED board ordered from manufacturer (JLCPCB). 2-layer, HASL finish, 5 copies each. |
+| 3 May 2026 | Firmware development started. Core module headers defined: motors.h, sensors.h, state_machine.h, mqtt_client.h, oled.h, provisioning.h. |
+| 4 May 2026 | motors.cpp and sensors.cpp implemented. L298N PWM control via ledcWrite, IR debouncing (2 consecutive reads), non-blocking ultrasonic round-robin, battery ADC with voltage divider scaling. |
+| 6 May 2026 | state_machine.cpp implemented — 4-state machine (MANUAL / FOLLOWING / AVOIDING / RECOVERING). MQTT client implemented — WiFi connect, PubSubClient subscribe/publish, telemetry JSON at 100ms. |
+| 7 May 2026 | provisioning.cpp implemented — BLE service exposes JSON characteristic, credentials written to NVS, startup blocked until provisioned. Credentials persist across reboots. |
+| 7 May 2026 | oled.cpp completed — mode and robot state added to display (line 3). Battery voltage and MQTT status on lines 1–2. |
+| 8 May 2026 | main.cpp completed — setup/loop orchestration, telemetry published every 100ms, OLED updated every 500ms. All modules wired together and compiling. |
+| 10 May 2026 | CLAUDE.md created. README audited and updated: OLED feature status corrected, OBSTACLE_STOP_CM fixed (15→12), BLE provisioning section added, firmware build log filled in. |
+| 10 May 2026 | Auto-changelog hook configured in Claude Code settings — Claude now updates this Build Log automatically after every code change. |
 
 ---
 
@@ -775,6 +785,8 @@ The robot chassis is designed in **Autodesk Inventor** and 3D printed. The STEP 
 |------|-------|
 | 27 Apr 2026 | Chassis design started in Autodesk Inventor. STEP file uploaded to GitHub repo. |
 | 29 Apr 2026 | Chassis assembly rendered in Autodesk Inventor. Assembly image added to repo. |
+| 4 May 2026 | Chassis design finalised — all mounting hole positions verified against PCB corner holes (M4, 4 corners). Motor mount spacing confirmed against motor dimensions. |
+| 8 May 2026 | Chassis sent to 3D printer. PLA, 0.2mm layer height, 20% infill for non-structural sections, 50% infill for motor mounts and standoff pillars. |
 
 ---
 
@@ -952,13 +964,25 @@ config.h          — pin definitions, thresholds, constants
 
 // Thresholds
 #define OBSTACLE_WARN_CM  20
-#define OBSTACLE_STOP_CM  15
-#define RECOVERY_TIMEOUT  2000  // ms before spinning
-#define SPIN_TIMEOUT      5000  // ms before giving up
+#define OBSTACLE_STOP_CM  12
+#define RECOVERY_SWEEP_MS 2000  // sweep last-known direction before spinning
+#define RECOVERY_SPIN_MS  5000  // spin timeout before giving up
+#define AVOID_MIN_MS      500   // minimum time in AVOIDING before re-checking
 #define BASE_SPEED        180
-#define TURN_SPEED        120
-#define SLOW_SPEED        80
+#define SPEED_TURN        120
+#define SPEED_SLOW        80
+#define SPEED_REVERSE     150
 ```
+
+---
+
+### BLE Provisioning
+
+WiFi SSID/password and MQTT broker IP are **not hardcoded**. On first boot, the ESP32 starts a BLE service and blocks until an Android app sends credentials as JSON over BLE2902. Credentials are stored in NVS (non-volatile storage) and persist across reboots, so provisioning only runs once unless NVS is cleared.
+
+- Service UUID: `4fafc201-1fb5-459e-8fcc-c5c9c331914b`
+- Characteristic UUID: `beb5483e-36e1-4688-b7f5-ea07361b26a8`
+- Payload: `{"ssid":"...","password":"...","broker":"192.168.x.x"}`
 
 ---
 
@@ -966,4 +990,13 @@ config.h          — pin definitions, thresholds, constants
 
 | Date | Entry |
 |------|-------|
-| 27 Apr 2026 | Firmware architecture planned. Differential drive, 3-state machine (FOLLOWING / AVOIDING / RECOVERING), MQTT integration. To be built once PCB arrives or on breadboard. |
+| 27 Apr 2026 | Firmware architecture planned. Differential drive, 3-state machine (FOLLOWING / AVOIDING / RECOVERING), MQTT integration. |
+| 3 May 2026 | Project scaffolded in firmware/. All module headers created with clean public APIs. config.h written with all pin definitions, thresholds, and speed constants. |
+| 4 May 2026 | motors.cpp — L298N PWM via ledcSetup/ledcWrite, full high-level command set (forward, reverse, spinLeft, spinRight, curveLeft, curveRight, hardLeft, hardRight). |
+| 4 May 2026 | sensors.cpp — IR reading with 2-read debounce, non-blocking ultrasonic using round-robin rotation (one sensor per loop cycle), battery ADC with R1/R2 voltage divider formula. |
+| 6 May 2026 | state_machine.cpp — 4-state machine implemented. FOLLOWING uses full 8-case IR truth table. AVOIDING curves around obstacle using left/right distance comparison. RECOVERING sweeps last-known direction then spins. |
+| 6 May 2026 | mqtt_client.cpp — WiFi connect, PubSubClient subscribe to robot/control/#, callback dispatches to setManualMove/setSpeed/setMode. Publishes IR/ultrasonic/battery/speed JSON every 100ms. |
+| 7 May 2026 | provisioning.cpp — BLE service with PROV_SERVICE_UUID and PROV_CHAR_UUID. JSON payload parsed with ArduinoJson, credentials stored in NVS Preferences. Startup blocks until credentialsReady. |
+| 7 May 2026 | oled.cpp — 128x32 SSD1306 over remapped I2C (SDA=D4, SCL=D5). Shows battery voltage, MQTT status, and mode/state string. Updates every 500ms non-blocking. |
+| 8 May 2026 | main.cpp — setup/loop wired. provisioningInit() blocks before mqttInit(). Loop reads sensors → stateMachineUpdate → publishes telemetry + updates OLED every 100ms. All modules integrated and compiling. |
+| 10 May 2026 | CLAUDE.md created. README corrected: OLED features, constants, BLE provisioning documented. |
