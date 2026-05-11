@@ -2,10 +2,14 @@
 
 A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring dual motor control via L298N, 3 IR line sensors, 3 ultrasonic distance sensors, and an LM2596S-ADJ buck converter powered by a 2S LiPo (8.8V). Fully controlled via a custom **Android MQTT app** with live telemetry, accelerometer tilt control and WASD buttons.
 
+> **2026-05-11 — Migrated from Arduino to ESP-IDF.**
+> All firmware is now pure ESP-IDF (v5.x). Arduino framework, PubSubClient, ArduinoJson, and Adafruit SSD1306 are gone. BLE uses NimBLE, MQTT uses esp-mqtt, I2C uses the legacy driver, ADC uses adc_oneshot. Build with `idf.py build flash monitor`.
+
 ---
 
 ## 📋 Table of Contents
 
+- [Firmware Build (ESP-IDF)](#firmware-build-esp-idf)
 - [Hardware Overview](#hardware-overview)
 - [Schematic](#schematic)
 - [PCB Layout](#pcb-layout)
@@ -18,6 +22,56 @@ A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring du
 - [PCB Development Process](#pcb-development-process)
 - [Known Issues & Planned Fixes](#known-issues--planned-fixes)
 - [Build Log](#build-log)
+
+---
+
+## Firmware Build (ESP-IDF)
+
+### Prerequisites
+
+- ESP-IDF v5.x installed — [Installation guide](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/)
+- No additional libraries needed — all dependencies are built-in ESP-IDF components
+
+### Project structure
+
+```
+firmware/
+├── CMakeLists.txt          ← project root
+├── sdkconfig.defaults      ← NimBLE enabled, 8 KB main stack
+└── main/
+    ├── CMakeLists.txt
+    ├── main.c              ← app_main + main loop
+    ├── config.h            ← all pin/constant definitions
+    ├── provisioning.c/h    ← BLE credential provisioning (NimBLE + NVS)
+    ├── sensors.c/h         ← IR, ultrasonic, battery ADC
+    ├── state_machine.c/h   ← autonomy logic + motor control (merged)
+    ├── mqtt.c/h            ← WiFi STA + MQTT client
+    └── oled.c/h            ← SSD1306 driver + 5×7 font
+```
+
+### Build & flash
+
+```bash
+cd firmware
+idf.py set-target esp32
+idf.py build
+idf.py -p COM<N> flash monitor
+```
+
+### First boot — WiFi provisioning
+
+On first boot the ESP32 advertises over BLE as **"IoT-Robot"**. Use any BLE tool (nRF Connect, LightBlue, or your own app) to connect and write JSON to the credential characteristic:
+
+```
+Service:    4fafc201-1fb5-459e-8fcc-c5c9c331914b
+Char (W+N): beb5483e-36e1-4688-b7f5-ea07361b26a8
+
+Write: {"ssid":"YourWiFi","password":"YourPass","broker":"192.168.x.x"}
+Reply: "OK"  (notify, then device restarts)
+       "ERR" (notify, bad JSON — try again)
+```
+
+Credentials are stored in NVS and survive reboots. To re-provision, call `provisioning_reset()` in firmware.
 
 ---
 
@@ -370,27 +424,20 @@ Toggled by a single button in the app. Accelerometer listener is registered/unre
 | Motor speed | `robot/telemetry/speed` | PWM both channels |
 | Connection status | Internal | Broker + ESP32 link |
 
-### ESP32 Firmware — MQTT Skeleton
+### ESP32 Firmware — MQTT (ESP-IDF)
 
-```cpp
-#include <WiFi.h>
-#include <PubSubClient.h>
+WiFi and MQTT are event-driven via `esp_mqtt_client`. The client runs in its own task — no polling loop needed. Credentials (SSID, password, broker IP) come from NVS after BLE provisioning.
 
-const char* mqtt_server = "PHONE_LOCAL_IP";
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  String msg = String((char*)payload).substring(0, length);
-  if (String(topic) == "robot/control/move")  handleMove(msg);
-  if (String(topic) == "robot/control/speed") setSpeed(msg.toInt());
-  if (String(topic) == "robot/control/mode")  setMode(msg);
-}
-
-void publishTelemetry() {
-  client.publish("robot/telemetry/battery",    String(batteryVoltage).c_str());
-  client.publish("robot/telemetry/ir",         irStateJson().c_str());
-  client.publish("robot/telemetry/ultrasonic", ultrasonicJson().c_str());
-  client.publish("robot/telemetry/speed",      speedJson().c_str());
-}
+```c
+// mqtt.c excerpt — event handler
+case MQTT_EVENT_CONNECTED:
+    esp_mqtt_client_subscribe(client, "robot/control/move", 0);
+    esp_mqtt_client_subscribe(client, "robot/control/mode", 0);
+    break;
+case MQTT_EVENT_DATA:
+    if (strcmp(topic, "robot/control/move") == 0) state_machine_set_move(msg);
+    if (strcmp(topic, "robot/control/mode") == 0) state_machine_set_mode(...);
+    break;
 ```
 
 ---
@@ -545,6 +592,8 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 | 8 May 2026 | main.cpp completed — setup/loop orchestration, telemetry published every 100ms, OLED updated every 500ms. All modules wired together and compiling. |
 | 10 May 2026 | CLAUDE.md created. README audited and updated: OLED feature status corrected, OBSTACLE_STOP_CM fixed (15→12), BLE provisioning section added, firmware build log filled in. |
 | 10 May 2026 | Auto-changelog hook configured in Claude Code settings — Claude now updates this Build Log automatically after every code change. |
+| 11 May 2026 | Firmware refactor: removed dead stubs, updated LEDC API, stripped comment blocks. |
+| 11 May 2026 | **Full migration from Arduino to ESP-IDF v5.x.** All `.cpp` files replaced with clean `.c` files. Arduino framework, PubSubClient, ArduinoJson, and Adafruit SSD1306 removed. Motors merged into `state_machine.c` (only caller). BLE: NimBLE (half RAM of Bluedroid, declarative GATT). MQTT: esp-mqtt event-driven client. ADC: adc_oneshot API. PWM: LEDC native. I2C: legacy driver with raw SSD1306 init + 5×7 built-in font. WiFi provisioning char now has WRITE+NOTIFY — app receives "OK"/"ERR" confirmation. Project restructured into proper ESP-IDF layout (`firmware/main/`). |
 
 ---
 
@@ -1000,3 +1049,4 @@ WiFi SSID/password and MQTT broker IP are **not hardcoded**. On first boot, the 
 | 7 May 2026 | oled.cpp — 128x32 SSD1306 over remapped I2C (SDA=D4, SCL=D5). Shows battery voltage, MQTT status, and mode/state string. Updates every 500ms non-blocking. |
 | 8 May 2026 | main.cpp — setup/loop wired. provisioningInit() blocks before mqttInit(). Loop reads sensors → stateMachineUpdate → publishes telemetry + updates OLED every 100ms. All modules integrated and compiling. |
 | 10 May 2026 | CLAUDE.md created. README corrected: OLED features, constants, BLE provisioning documented. |
+| 11 May 2026 | Refactor: dead code removed (`getCurrentSpeedLeft/Right`, `TOPIC_SPEED`, `TOPIC_SPEED_FB`, `provisioningReady`). `BLE2902` removed from WRITE char. Motor PWM updated to ESP32 Core 3.x `ledcAttach` API. Comment blocks stripped across all modules. |
