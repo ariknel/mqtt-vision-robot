@@ -58,20 +58,27 @@ idf.py build
 idf.py -p COM<N> flash monitor
 ```
 
-### First boot — WiFi provisioning
+### WiFi provisioning via BLE
 
-On first boot the ESP32 advertises over BLE as **"IoT-Robot"**. Use any BLE tool (nRF Connect, LightBlue, or your own app) to connect and write JSON to the credential characteristic:
+On every boot the ESP32 advertises over BLE as **"IoT-Robot"** for a 30-second re-provision window. Use the Android app's **BLE PROVISIONING** screen (or any BLE tool) to connect and write JSON to the credential characteristic:
 
 ```
 Service:    4fafc201-1fb5-459e-8fcc-c5c9c331914b
 Char (W+N): beb5483e-36e1-4688-b7f5-ea07361b26a8
 
 Write: {"ssid":"YourWiFi","password":"YourPass","broker":"192.168.x.x"}
-Reply: "OK"  (notify, then device restarts)
+Reply: "OK"  (notify after 1.5 s, then device restarts into WiFi mode)
        "ERR" (notify, bad JSON — try again)
 ```
 
-Credentials are stored in NVS and survive reboots. To re-provision, call `provisioning_reset()` in firmware.
+Boot sequence:
+- **No credentials in NVS** — BLE advertises indefinitely until credentials arrive.
+- **Credentials present, normal boot** — BLE advertises for 30 s (re-provision window), then stops NimBLE and hands the radio to WiFi/MQTT.
+- **Boot immediately after provisioning** (`fresh` NVS flag set) — BLE skipped entirely, goes straight to WiFi/MQTT.
+
+Credentials persist across reboots. To force re-provisioning, erase flash (`esptool.py --chip esp32 -p /dev/ttyUSB0 erase_flash`) and reflash.
+
+The Android provisioning screen auto-detects the broker IP from the phone's WiFi interface — only the WiFi SSID and password need to be typed in.
 
 ---
 
@@ -391,7 +398,6 @@ Custom Android app (Android Studio) communicates with the ESP32 over MQTT. The b
 | `robot/telemetry/ir` | ESP32 → App | IR sensor states JSON |
 | `robot/telemetry/ultrasonic` | ESP32 → App | Distance readings JSON (cm) |
 | `robot/telemetry/battery` | ESP32 → App | Battery voltage (V) |
-| `robot/telemetry/speed` | ESP32 → App | PWM values both motors |
 
 ### Control Modes
 
@@ -418,11 +424,10 @@ Toggled by a single button in the app. Accelerometer listener is registered/unre
 
 | Widget | Topic | Notes |
 |--------|-------|-------|
-| IR indicators | `robot/telemetry/ir` | 3 visual indicators |
-| Ultrasonic distances | `robot/telemetry/ultrasonic` | Live cm readouts |
-| Battery voltage | `robot/telemetry/battery` | Live + low battery warning |
-| Motor speed | `robot/telemetry/speed` | PWM both channels |
-| Connection status | Internal | Broker + ESP32 link |
+| IR indicators | `robot/telemetry/ir` | 3 visual dot indicators |
+| Ultrasonic distances | `robot/telemetry/ultrasonic` | Live cm readouts L/C/R |
+| Battery voltage | `robot/telemetry/battery` | Color-coded (green/amber/red) |
+| Connection status | Internal | Two indicators: BROKER (Moquette) + MQTT (ESP32) |
 
 ### ESP32 Firmware — MQTT (ESP-IDF)
 
@@ -431,12 +436,14 @@ WiFi and MQTT are event-driven via `esp_mqtt_client`. The client runs in its own
 ```c
 // mqtt.c excerpt — event handler
 case MQTT_EVENT_CONNECTED:
-    esp_mqtt_client_subscribe(client, "robot/control/move", 0);
-    esp_mqtt_client_subscribe(client, "robot/control/mode", 0);
+    esp_mqtt_client_subscribe(s_client, "robot/control/move",  0);
+    esp_mqtt_client_subscribe(s_client, "robot/control/mode",  0);
+    esp_mqtt_client_subscribe(s_client, "robot/control/speed", 0);
     break;
 case MQTT_EVENT_DATA:
-    if (strcmp(topic, "robot/control/move") == 0) state_machine_set_move(msg);
-    if (strcmp(topic, "robot/control/mode") == 0) state_machine_set_mode(...);
+    if      (strcmp(topic, TOPIC_MOVE)  == 0) state_machine_set_move(msg);
+    else if (strcmp(topic, TOPIC_MODE)  == 0) state_machine_set_mode(...);
+    else if (strcmp(topic, TOPIC_SPEED) == 0) state_machine_set_speed(atoi(msg));
     break;
 ```
 
@@ -549,6 +556,12 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 | 🟢 OK | J3 JST: Pin1=GND, Pin2=8.8V ✅ | ✅ |
 | 🟢 OK | 100nF decoupling not added — ESP32-DEVKITC has it built in ✅ | ✅ |
 | 🟢 OK | D36/D39 non-existent on DEVKITC V1 — replaced with D19 and D2 ✅ | ✅ |
+| 🟢 OK | BLE device invisible after first provisioning (NVS credentials skipped BLE entirely) — fixed with re-provision window + `fresh` NVS flag ✅ | ✅ |
+| 🟢 OK | BLE and WiFi radio conflict — NimBLE kept alive after window, competing with WiFi — fixed with `stop_nimble()` clean handoff ✅ | ✅ |
+| 🟢 OK | OLED I2C flooding serial (720ms/update) when no hardware connected — fixed with `i2c_master_probe()` presence check ✅ | ✅ |
+| 🟢 OK | Android broker IP returning cellular IP on dual-SIM phones — fixed by filtering `allNetworks` for WiFi transport ✅ | ✅ |
+| 🟢 OK | Moquette failing silently (`catch Exception` missing Netty Throwable errors) — fixed with `catch Throwable` + `data_path → filesDir` ✅ | ✅ |
+| 🟢 OK | ESP32 ignoring speed slider (no `robot/control/speed` subscription) — added subscription + `state_machine_set_speed()` ✅ | ✅ |
 
 ---
 
@@ -620,17 +633,17 @@ The key design decision is simplicity and reliability: the broker runs embedded 
       │
 [ESP32-DEVKITC V1]
       │
-      └── PubSubClient (connects to phone IP:1883)
-            ├── Subscribes: robot/control/#
+      └── esp-mqtt client (connects to phone IP:1883)
+            ├── Subscribes: robot/control/move, mode, speed
             └── Publishes:  robot/telemetry/#
 ```
 
 The phone's IP address on the local network is the broker address. The ESP32 connects to that IP on port 1883. No internet, no cloud, no external server — everything runs locally.
 
 **Connection flow:**
-1. App launches → Moquette broker starts as foreground service on port 1883
-2. Eclipse Paho client connects to `localhost:1883`
-3. ESP32 powers on → connects to WiFi → connects to broker at phone's IP
+1. App launches → Moquette broker starts as foreground service on port 1883 (writes H2 store to `filesDir`)
+2. `MainActivity` polls `MqttBrokerService.isRunning` (Compose state), then Eclipse Paho connects to `localhost:1883`
+3. ESP32 boots → 30-second BLE window → window expires → WiFi connects → esp-mqtt connects to phone IP:1883
 4. Handshake complete → telemetry starts flowing, controls start working
 
 ---
@@ -666,16 +679,18 @@ Commands are published with **QoS 0** (fire and forget) — fast and no overhead
 
 ### App Structure
 
+Built with **Jetpack Compose** (no XML fragments). All screens are Composable functions.
+
 ```
-MqttVisionRobot/
-├── MainActivity.kt           — entry point, navigation, broker lifecycle
+MqttVisionRobot/app/src/main/java/com/ariknel/mqttvisionrobot/
+├── MainActivity.kt           — entry point, broker lifecycle, screen routing
 ├── MqttBrokerService.kt      — Moquette broker as Android foreground service
-├── MqttClientManager.kt      — Eclipse Paho client, all pub/sub logic
-├── ControlFragment.kt        — game controller UI
-├── TelemetryFragment.kt      — live sensor dashboard
-└── ui/
-    ├── WasdView.kt           — custom WASD button layout
-    └── TelemetryCard.kt      — reusable sensor card widget
+├── MqttClientManager.kt      — Eclipse Paho client, publish helpers
+├── BleProvisioningManager.kt — BLE scan, connect, write credentials, notify
+├── RobotState.kt             — global Compose state (telemetry, connection, mode)
+├── TelemetryParser.kt        — parses robot/telemetry/# JSON into RobotState
+├── RobotControlScreen.kt     — main control UI (StatusBar, D-pad, speed, tilt, telemetry)
+└── ProvisioningScreen.kt     — BLE provisioning form (auto-detects broker IP)
 ```
 
 ---
@@ -753,38 +768,34 @@ implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
 ### ESP32 Firmware — Connection Side
 
-```cpp
-#include <WiFi.h>
-#include <PubSubClient.h>
+Credentials (SSID, password, broker IP) are loaded from NVS after BLE provisioning. WiFi and MQTT are fully event-driven — no polling loop.
 
-const char* ssid        = "YOUR_WIFI_SSID";
-const char* password    = "YOUR_WIFI_PASSWORD";
-const char* mqtt_server = "PHONE_LOCAL_IP"; // e.g. 192.168.1.x
+```c
+// mqtt.c — simplified
+void mqtt_init(void) {
+    // WiFi STA connect using NVS credentials
+    esp_wifi_connect();
+    xEventGroupWaitBits(s_events, WIFI_CONNECTED_BIT, ...);
 
-WiFiClient   espClient;
-PubSubClient client(espClient);
+    // Build broker URI from NVS broker IP
+    char uri[80];
+    snprintf(uri, sizeof(uri), "mqtt://%s:%d", provisioning_get_broker(), 1883);
 
-void reconnect() {
-  while (!client.connected()) {
-    if (client.connect("ESP32Robot")) {
-      client.subscribe("robot/control/#");
-    }
-    delay(500);
-  }
+    esp_mqtt_client_config_t mcfg = { .broker.address.uri = uri };
+    s_client = esp_mqtt_client_init(&mcfg);
+    esp_mqtt_client_register_event(s_client, ESP_EVENT_ANY_ID, mqtt_handler, NULL);
+    esp_mqtt_client_start(s_client);
 }
 
-void callback(char* topic, byte* payload, unsigned int length) {
-  String msg = String((char*)payload).substring(0, length);
-  if (String(topic) == "robot/control/move")  handleMove(msg);
-  if (String(topic) == "robot/control/speed") setSpeed(msg.toInt());
-  if (String(topic) == "robot/control/mode")  setMode(msg);
-}
+// mqtt_handler — MQTT_EVENT_CONNECTED
+esp_mqtt_client_subscribe(s_client, "robot/control/move",  0);
+esp_mqtt_client_subscribe(s_client, "robot/control/mode",  0);
+esp_mqtt_client_subscribe(s_client, "robot/control/speed", 0);
 
-void loop() {
-  if (!client.connected()) reconnect();
-  client.loop();
-  publishTelemetry(); // every ~100ms
-}
+// mqtt_handler — MQTT_EVENT_DATA
+if      (strcmp(topic, TOPIC_MOVE)  == 0) state_machine_set_move(msg);
+else if (strcmp(topic, TOPIC_MODE)  == 0) state_machine_set_mode(...);
+else if (strcmp(topic, TOPIC_SPEED) == 0) state_machine_set_speed(atoi(msg));
 ```
 
 ---
@@ -1050,3 +1061,15 @@ WiFi SSID/password and MQTT broker IP are **not hardcoded**. On first boot, the 
 | 8 May 2026 | main.cpp — setup/loop wired. provisioningInit() blocks before mqttInit(). Loop reads sensors → stateMachineUpdate → publishes telemetry + updates OLED every 100ms. All modules integrated and compiling. |
 | 10 May 2026 | CLAUDE.md created. README corrected: OLED features, constants, BLE provisioning documented. |
 | 11 May 2026 | Refactor: dead code removed (`getCurrentSpeedLeft/Right`, `TOPIC_SPEED`, `TOPIC_SPEED_FB`, `provisioningReady`). `BLE2902` removed from WRITE char. Motor PWM updated to ESP32 Core 3.x `ledcAttach` API. Comment blocks stripped across all modules. |
+| 11 May 2026 | **Full migration from Arduino to ESP-IDF v5.x.** All `.cpp` files replaced with clean `.c` files. Arduino framework, PubSubClient, ArduinoJson, and Adafruit SSD1306 removed. Motors merged into `state_machine.c`. BLE: NimBLE. MQTT: esp-mqtt event-driven. ADC: adc_oneshot. PWM: LEDC. I2C: new master API with raw SSD1306 + 5×7 built-in font. Provisioning char: WRITE+NOTIFY. |
+| 12 May 2026 | Android provisioning screen: broker IP auto-detected from phone's WiFi interface. WiFi-specific network filter prevents cellular IP on dual-SIM phones. Broker field read-only with AUTO-DETECTED badge. |
+| 12 May 2026 | HOW_TO_BUILD_AND_FLASH.txt: added Ubuntu terminal open instructions, corrected erase flash step (renumbered as Step 3). |
+| 13 May 2026 | BLE provisioning redesigned — 30-second re-provision window on every boot. `NVS_KEY_FRESH` flag skips BLE on boot immediately after provisioning. `s_ble_stopping` guard prevents re-advertising during shutdown. Notification delay before restart increased to 1500ms. |
+| 13 May 2026 | Clean BLE→WiFi radio handoff: `stop_nimble()` (adv stop → port stop → 300ms → deinit) called before WiFi init. Removed `ble_reprov_watch_task`. |
+| 13 May 2026 | OLED graceful no-hardware handling: `i2c_master_probe()` presence check at init, `s_present` guard in `oled_update()`. Eliminates 720ms I2C blocking per update when no OLED connected. |
+| 14 May 2026 | Android manifest: added `FOREGROUND_SERVICE_CONNECTED_DEVICE` permission (required for Android 14+ foreground service with connectedDevice type). |
+| 14 May 2026 | Android `MainActivity`: replaced fixed 1500ms delay with `MqttBrokerService.isRunning` poll — Paho connects only after Moquette has bound to port 1883. |
+| 15 May 2026 | Moquette startup failure: `catch (Exception)` → `catch (Throwable)` so Netty errors surface in logcat. Root cause: H2 store path defaulting to `/data/` (permission denied). Fixed with `data_path = filesDir.absolutePath`. |
+| 15 May 2026 | Android StatusBar: broker status indicator added — BROKER OK / BROKER DOWN dot reads `MqttBrokerService.isRunning` as live Compose state. |
+| 15 May 2026 | End-to-end MQTT verified working: ESP32 connects to Moquette on phone, move/mode/speed commands received, telemetry published. |
+| 15 May 2026 | Speed control wired end-to-end: `TOPIC_SPEED` added to `config.h`, subscribed in `mqtt_init()`. `state_machine_set_speed()` added. `run_manual()` uses dynamic `s_speed` (turns = 2/3 of speed). Logging added to `set_move()` and `set_speed()`. |
