@@ -607,7 +607,7 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 | 10 May 2026 | Auto-changelog hook configured in Claude Code settings — Claude now updates this Build Log automatically after every code change. |
 | 11 May 2026 | Firmware refactor: removed dead stubs, updated LEDC API, stripped comment blocks. |
 | 11 May 2026 | **Full migration from Arduino to ESP-IDF v5.x.** All `.cpp` files replaced with clean `.c` files. Arduino framework, PubSubClient, ArduinoJson, and Adafruit SSD1306 removed. Motors merged into `state_machine.c` (only caller). BLE: NimBLE (half RAM of Bluedroid, declarative GATT). MQTT: esp-mqtt event-driven client. ADC: adc_oneshot API. PWM: LEDC native. I2C: legacy driver with raw SSD1306 init + 5×7 built-in font. WiFi provisioning char now has WRITE+NOTIFY — app receives "OK"/"ERR" confirmation. Project restructured into proper ESP-IDF layout (`firmware/main/`). |
-
+| 19 May 2026 | PCB Arrived, assembled components, tested voltage regulator circuit = working, rest needs checking |
 ---
 
 ## Android App — MQTT Vision Robot
