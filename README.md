@@ -610,6 +610,7 @@ Run via **Inspect → Design Rules Checker → Run DRC**:
 | 19 May 2026 | PCB Arrived, assembled components, tested voltage regulator circuit = working, rest needs checking |
 | 22 May 2026 | Soldered and assembled everything inside the shell, started testing bluetooth provisioning (functional, few bugs: false positive on connecting inside app, mqtt connection status is false - should only show connected when device is connected, not as status indicator, gpios l298 not yet tested, gpios sensor watchdog trigger error |
 | 26 May 2026 | tested motor driver, functional, added mechanical on off switch to battery |
+| 28 May 2026 | Manual mode functional, receiving ir sensor input inside app, ultrasonic sensors i2c issues yet ti be solved |
 ---
 
 ## Android App — MQTT Vision Robot
