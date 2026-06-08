@@ -1,0 +1,11 @@
+version: '3'
+services:
+  idf:
+    image: espressif/idf:v5.4.1
+    volumes:
+      - .:/project
+    working_dir: /project
+    privileged: true
+    stdin_open: true
+    tty: true
+    command: /bin/bash
