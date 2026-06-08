@@ -5,6 +5,9 @@
  * derived from Adafruit glcdfont.c). Each character is 6 pixels wide
  * (5 glyph + 1 spacing) × 8 pixels tall (one SSD1306 page).
  * Fits 21 chars per line, 4 lines total — we use lines 0-2.
+ *
+ * If no OLED is detected at boot (i2c_master_probe fails), s_present
+ * stays false and oled_update() becomes a no-op — no I2C spam.
  */
 #include "oled.h"
 #include "config.h"
@@ -16,9 +19,12 @@
 
 static const char *TAG = "OLED";
 
-#define I2C_TIMEOUT_MS  10
+#define I2C_TIMEOUT_MS   50
 
+static i2c_master_bus_handle_t s_bus     = NULL;
 static i2c_master_dev_handle_t s_dev;
+static bool                    s_present = false;
+static int                     s_fails   = 0;
 
 /* ── 5×7 font, printable ASCII 0x20–0x7E (95 chars × 5 bytes) ────────── */
 /* Each byte = one column of 7 pixels, bit-0 = top row.                   */
@@ -121,20 +127,29 @@ static const uint8_t FONT[95][5] = {
 };
 
 /* ── Low-level I2C helpers ────────────────────────────────────────────── */
-static void i2c_cmd(uint8_t cmd)
+static void i2c_tx_check(esp_err_t ret)
 {
-    uint8_t buf[2] = { 0x00, cmd };   /* 0x00 = command stream */
-    i2c_master_transmit(s_dev, buf, 2, I2C_TIMEOUT_MS);
+    if (ret != ESP_OK) {
+        if (++s_fails == 5) i2c_master_bus_reset(s_bus);
+        if (s_fails >= 20)  s_present = false;
+    } else {
+        s_fails = 0;
+    }
 }
 
-/* Write up to 32 data bytes in one transaction (0x40 = data stream). */
+static void i2c_cmd(uint8_t cmd)
+{
+    uint8_t buf[2] = { 0x00, cmd };
+    i2c_tx_check(i2c_master_transmit(s_dev, buf, 2, I2C_TIMEOUT_MS));
+}
+
 static void i2c_data(const uint8_t *d, size_t len)
 {
-    uint8_t buf[33];                  /* 1 control + 32 data max */
+    uint8_t buf[33];
     if (len > 32) len = 32;
     buf[0] = 0x40;
     memcpy(buf + 1, d, len);
-    i2c_master_transmit(s_dev, buf, len + 1, I2C_TIMEOUT_MS);
+    i2c_tx_check(i2c_master_transmit(s_dev, buf, len + 1, I2C_TIMEOUT_MS));
 }
 
 /* ── SSD1306 init sequence for 128×32 ────────────────────────────────── */
@@ -195,25 +210,46 @@ void oled_init(void)
         .glitch_ignore_cnt   = 7,
         .flags.enable_internal_pullup = true,
     };
-    i2c_master_bus_handle_t bus;
-    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_cfg, &bus));
+    if (i2c_new_master_bus(&bus_cfg, &s_bus) != ESP_OK) {
+        ESP_LOGW(TAG, "I2C bus init failed — OLED disabled");
+        return;
+    }
+
+    /* Probe: send a 0-byte transaction to check the device ACKs its address.
+     * If no OLED is wired up, this returns non-OK and we bail out cleanly
+     * instead of hammering a missing device every 500 ms in the main loop. */
+    if (i2c_master_probe(s_bus, OLED_ADDRESS, 20) != ESP_OK) {
+        ESP_LOGW(TAG, "OLED not detected at 0x%02X — display disabled", OLED_ADDRESS);
+        i2c_del_master_bus(s_bus);
+        s_bus = NULL;
+        return;
+    }
 
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address  = OLED_ADDRESS,
-        .scl_speed_hz    = 400000,
+        .scl_speed_hz    = 100000,   /* 100 kHz — tolerates longer wires */
     };
-    ESP_ERROR_CHECK(i2c_master_bus_add_device(bus, &dev_cfg, &s_dev));
+    if (i2c_master_bus_add_device(s_bus, &dev_cfg, &s_dev) != ESP_OK) {
+        ESP_LOGW(TAG, "OLED device add failed — display disabled");
+        i2c_del_master_bus(s_bus);
+        s_bus = NULL;
+        return;
+    }
 
     for (size_t i = 0; i < sizeof(INIT_SEQ); i++) i2c_cmd(INIT_SEQ[i]);
 
     /* Clear all 4 pages */
     for (int p = 0; p < 4; p++) print_line(p, "");
+
+    s_present = true;
     ESP_LOGI(TAG, "OLED ready");
 }
 
 void oled_update(float battery, bool mqtt_ok, RobotMode mode, RobotState state)
 {
+    if (!s_present) return;
+
     char buf[24];
 
     /* Line 0 — battery */
@@ -232,7 +268,7 @@ void oled_update(float battery, bool mqtt_ok, RobotMode mode, RobotState state)
         switch (state) {
             case STATE_FOLLOWING:  st = "FOLLOWING";  break;
             case STATE_AVOIDING:   st = "AVOIDING";   break;
-            case STATE_RECOVERING: st = "RECOVERING"; break;
+            case STATE_LIFTED:     st = "PICKED UP";  break;
             default:               st = "LINE";       break;
         }
         snprintf(buf, sizeof(buf), "%s", st);

@@ -4,6 +4,7 @@
 #include "state_machine.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "esp_log.h"
 #include "esp_wifi.h"
@@ -45,12 +46,20 @@ static void mqtt_handler(void *arg, esp_event_base_t base,
             ESP_LOGI(TAG, "MQTT connected");
             s_mqtt_up = true;
             xEventGroupSetBits(s_events, MQTT_CONNECTED_BIT);
-            esp_mqtt_client_subscribe(s_client, TOPIC_MOVE, 0);
-            esp_mqtt_client_subscribe(s_client, TOPIC_MODE, 0);
+            esp_mqtt_client_subscribe(s_client, TOPIC_MOVE,  0);
+            esp_mqtt_client_subscribe(s_client, TOPIC_MODE,  0);
+            esp_mqtt_client_subscribe(s_client, TOPIC_SPEED, 0);
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGW(TAG, "MQTT disconnected");
             s_mqtt_up = false;
+            /* Manual mode: stop wheels immediately so the car doesn't
+             * keep executing the last command indefinitely.
+             * Auto mode: leave the state machine running — it operates
+             * entirely from sensors and must not be interrupted by
+             * network drops. */
+            if (state_machine_get_mode() == MODE_MANUAL)
+                state_machine_set_move("stop");
             break;
         case MQTT_EVENT_DATA: {
             char topic[64] = {0};
@@ -63,6 +72,8 @@ static void mqtt_handler(void *arg, esp_event_base_t base,
                 state_machine_set_move(msg);
             else if (strcmp(topic, TOPIC_MODE) == 0)
                 state_machine_set_mode(strcmp(msg, "line_follow") == 0 ? MODE_LINE_FOLLOW : MODE_MANUAL);
+            else if (strcmp(topic, TOPIC_SPEED) == 0)
+                state_machine_set_speed(atoi(msg));
             break;
         }
         default: break;
@@ -101,6 +112,7 @@ void mqtt_init(void)
 
     char uri[80];
     snprintf(uri, sizeof(uri), "mqtt://%s:%d", provisioning_get_broker(), MQTT_PORT);
+    ESP_LOGI(TAG, "Broker URI: %s", uri);
     esp_mqtt_client_config_t mcfg = { .broker.address.uri = uri };
     s_client = esp_mqtt_client_init(&mcfg);
     esp_mqtt_client_register_event(s_client, ESP_EVENT_ANY_ID, mqtt_handler, NULL);
