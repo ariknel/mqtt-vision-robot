@@ -5,7 +5,7 @@ A line-following robot built around the **ESP32-DEVKITC V1**, featuring dual mot
 All firmware is written in pure **ESP-IDF v5.x** (C). No Arduino framework. WiFi credentials are provisioned over BLE using NimBLE. Communication with the app uses MQTT over WiFi. The Android app runs an embedded MQTT broker — no cloud or external server needed.
 
 ---
-
+![Show Image](show_image.jpeg)
 ## Table of Contents
 
 - [Hardware Bill of Materials](#hardware-bill-of-materials)
