@@ -1,102 +1,49 @@
-# 🤖 ESP32 Line Sensing Robot
+# ESP32 MQTT Vision Robot
 
-A line-following robot built around the **ESP32-DEV (DEVKITC V1)**, featuring dual motor control via L298N, 3 IR line sensors, 3 ultrasonic distance sensors, and an LM2596S-ADJ buck converter powered by a 2S LiPo (8.8V). Fully controlled via a custom **Android MQTT app** with live telemetry, accelerometer tilt control and WASD buttons.
+A line-following robot built around the **ESP32-DEVKITC V1**, featuring dual motor control via L298N, 3 IR line sensors, 3 ultrasonic distance sensors, and an LM2596S-ADJ buck converter powered by a custom 2S 18650 battery pack (8.4V fully charged). Fully controlled via a custom **Android MQTT app** with live telemetry, accelerometer tilt control, and WASD buttons.
 
-> **2026-05-11 — Migrated from Arduino to ESP-IDF.**
-> All firmware is now pure ESP-IDF (v5.x). Arduino framework, PubSubClient, ArduinoJson, and Adafruit SSD1306 are gone. BLE uses NimBLE, MQTT uses esp-mqtt, I2C uses the legacy driver, ADC uses adc_oneshot. Build with `idf.py build flash monitor`.
+All firmware is written in pure **ESP-IDF v5.x** (C). No Arduino framework. WiFi credentials are provisioned over BLE using NimBLE. Communication with the app uses MQTT over WiFi. The Android app runs an embedded MQTT broker — no cloud or external server needed.
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [Firmware Build (ESP-IDF)](#firmware-build-esp-idf)
-- [Hardware Overview](#hardware-overview)
+- [Hardware Bill of Materials](#hardware-bill-of-materials)
 - [Schematic](#schematic)
-- [PCB Layout](#pcb-layout)
+- [PCB Design Process](#pcb-design-process)
+- [PCB Assembly & Testing](#pcb-assembly--testing)
+- [Chassis — 3D Printed](#chassis--3d-printed)
 - [Pinout Reference](#pinout-reference)
 - [JST Connector Wiring](#jst-connector-wiring)
 - [Power System](#power-system)
 - [Motor Control](#motor-control)
 - [Sensors](#sensors)
-- [Android App & MQTT Control](#android-app--mqtt-control)
-- [PCB Development Process](#pcb-development-process)
-- [Known Issues & Planned Fixes](#known-issues--planned-fixes)
+- [Firmware — Build & Flash](#firmware--build--flash)
+- [Android App](#android-app)
+- [First Run & WiFi Provisioning](#first-run--wifi-provisioning)
+- [Control Modes](#control-modes)
+- [Known Issues](#known-issues)
 - [Build Log](#build-log)
 
 ---
 
-## Firmware Build (ESP-IDF)
-
-### Prerequisites
-
-- ESP-IDF v5.x installed — [Installation guide](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/)
-- No additional libraries needed — all dependencies are built-in ESP-IDF components
-
-### Project structure
-
-```
-firmware/
-├── CMakeLists.txt          ← project root
-├── sdkconfig.defaults      ← NimBLE enabled, 8 KB main stack
-└── main/
-    ├── CMakeLists.txt
-    ├── main.c              ← app_main + main loop
-    ├── config.h            ← all pin/constant definitions
-    ├── provisioning.c/h    ← BLE credential provisioning (NimBLE + NVS)
-    ├── sensors.c/h         ← IR, ultrasonic, battery ADC
-    ├── state_machine.c/h   ← autonomy logic + motor control (merged)
-    ├── mqtt.c/h            ← WiFi STA + MQTT client
-    └── oled.c/h            ← SSD1306 driver + 5×7 font
-```
-
-### Build & flash
-
-```bash
-cd firmware
-idf.py set-target esp32
-idf.py build
-idf.py -p COM<N> flash monitor
-```
-
-### WiFi provisioning via BLE
-
-On every boot the ESP32 advertises over BLE as **"IoT-Robot"** for a 30-second re-provision window. Use the Android app's **BLE PROVISIONING** screen (or any BLE tool) to connect and write JSON to the credential characteristic:
-
-```
-Service:    4fafc201-1fb5-459e-8fcc-c5c9c331914b
-Char (W+N): beb5483e-36e1-4688-b7f5-ea07361b26a8
-
-Write: {"ssid":"YourWiFi","password":"YourPass","broker":"192.168.x.x"}
-Reply: "OK"  (notify after 1.5 s, then device restarts into WiFi mode)
-       "ERR" (notify, bad JSON — try again)
-```
-
-Boot sequence:
-- **No credentials in NVS** — BLE advertises indefinitely until credentials arrive.
-- **Credentials present, normal boot** — BLE advertises for 30 s (re-provision window), then stops NimBLE and hands the radio to WiFi/MQTT.
-- **Boot immediately after provisioning** (`fresh` NVS flag set) — BLE skipped entirely, goes straight to WiFi/MQTT.
-
-Credentials persist across reboots. To force re-provisioning, erase flash (`esptool.py --chip esp32 -p /dev/ttyUSB0 erase_flash`) and reflash.
-
-The Android provisioning screen auto-detects the broker IP from the phone's WiFi interface — only the WiFi SSID and password need to be typed in.
-
----
-
-## Hardware Overview
+## Hardware Bill of Materials
 
 | Component | Part | Notes |
 |-----------|------|-------|
-| MCU | ESP32-DEV (DEVKITC V1) | Dual-core, WiFi/BT capable |
-| Motor Driver | L298N | Repurposed from L298N module — correct Schottky diodes confirmed ✅ |
-| Buck Converter | LM2596S-ADJ | 8.8V → 5V, set via RV1 trimpot. Diode: SS34 Schottky ✅ |
-| Power Input | Custom 2S 18650 pack (2x 18650 cells) | 8.4V fully charged, connected via JST J3 (2-pin) connector |
-| Charger | Hailege 2S USB-C BMS Boost Charger | Step-up boost, charges to 8.4V via USB-C (5V input), overcharge & overcurrent protection |
-| Line Sensors | IR Sensor x3 | Digital output, 3.3V — via JST-B (10-pin) |
-| Distance Sensors | HC-SR04 x3 | 2021+ version — ECHO outputs 3.3V logic, no voltage divider needed ✅ |
-| Control App | Android (Android Studio) | MQTT-based, accelerometer + WASD control |
+| MCU | ESP32-DEVKITC V1 | Dual-core, WiFi + Bluetooth |
+| Motor Driver | L298N | Desoldered from L298N breakout module — correct Schottky freewheeling diodes reused |
+| Buck Converter | LM2596S-ADJ | 8.4V → 5V, output set via RV1 trimpot. Rectifier diode: SS34 Schottky |
+| Battery | Custom 2S 18650 pack (2× 18650 cells) | 8.4V fully charged, connected via JST J3 (2-pin) |
+| Charger | Hailege 2S USB-C BMS Boost Charger | Charges to 8.4V via USB-C (5V input), overcharge and overcurrent protection |
+| IR Sensors | Generic IR reflectance module × 3 | Digital output, 3.3V logic — connected via JST-B (10-pin) |
+| Ultrasonic Sensors | HC-SR04 × 3 — **2021+ version** | ECHO outputs 3.3V logic — no voltage divider needed. Connected via JST-A (10-pin) |
+| OLED Display | SSD1306 128×32 I2C | Mounted on a separate daughter PCB above the main board |
+| Android App | Custom (Kotlin, Android Studio, API 29+) | Embedded MQTT broker + WASD / accelerometer control |
 
-> ℹ️ **L298N Diodes:** Repurposed from L298N module — correct Schottky freewheeling diodes, no substitution needed.
-> ℹ️ **HC-SR04:** 2021+ version confirmed — ECHO outputs 3.3V logic, direct connection to ESP32 GPIO ✅
+> The L298N was desoldered from a breakout module to reuse its Schottky freewheeling diodes, which are the correct type and are already soldered in the correct polarity.
+
+> The HC-SR04 **must** be the 2021+ version, whose ECHO pin outputs 3.3V logic. Earlier versions output 5V on ECHO and require a voltage divider before connecting to ESP32 GPIO. Check the PCB revision marking or measure with a multimeter before connecting.
 
 ---
 
@@ -106,96 +53,258 @@ The Android provisioning screen auto-detects the broker IP from the phone's WiFi
 
 ![Full Schematic](schematic_full.png)
 
-*ESP32-DEV DEVKITC V1 + LM2596S-ADJ power section + L298N motor driver + JST-A ultrasonic connector + JST-B IR sensor connector*
+*ESP32-DEVKITC V1 + LM2596S-ADJ power section + L298N motor driver + JST-A ultrasonic connector + JST-B IR / OLED connector*
 
 ### LM2596S-ADJ — Buck Converter & Battery Monitor
 
 ![LM2596 Section](schematic_lm2596.png)
 
-*8.8V input via J3 JST (2-pin). R1/R2 voltage divider for battery ADC on D34. LM2596S-ADJ with SS34 Schottky diode D1, inductor L, 220µF output capacitor, RV1 trimpot setting 5V output via FB pin.*
+*8.4V input via J3 (2-pin JST). R1/R2 voltage divider (100 kΩ / 100 kΩ) feeds battery voltage to D34 for ADC monitoring. LM2596S-ADJ with SS34 Schottky diode D1, inductor L1, 220 µF input and output electrolytic capacitors, RV1 trimpot setting the 5V output via the FB pin.*
 
 ### L298N — Motor Driver
 
 ![L298N Section](schematic_l298n.png)
 
-*L298N dual H-bridge with Schottky freewheeling diodes on all outputs. Motor A: IN1 (D13), IN2 (D14), EnA (D21). Motor B: IN3 (D27), IN4 (D26), EnB (D25). Outputs to J1 and J2 screw terminals.*
+*L298N dual H-bridge with 8 Schottky freewheeling diodes. Motor A: IN1 (D13), IN2 (D14), EnA (D21). Motor B: IN3 (D27), IN4 (D26), EnB (D25). Motor outputs routed to J1 and J2 screw terminals.*
+
 ---
 
-## OLED Display Board
+## PCB Design Process
 
-### Overview
+The PCB is designed in **KiCad**. Custom component footprints are in the `/footprints` folder of this repo.
 
-A separate small PCB was designed to mount a **128x32 I2C OLED display** (SSD1306) on top of the robot chassis. This board sits above the main PCB, hiding it and making use of the limited space available. It connects directly to the main board via the JST-B connector (IR sensor connector), using the spare pins 6–10.
+### Step 1 — Schematic Capture
 
-The board is intentionally minimal — just 4 solder test pad holes (H1–H4) for wire routing, a 4-pin JST connector (J5), and the OLED module. No active components. Gerber files are in the `/gerber` folder.
+Built in KiCad's schematic editor. The following components were not in KiCad's default library and were imported manually:
 
-### Why a Separate Board
+- ESP32-DEVKITC V1
+- LM2596S-ADJ
+- L298N
+- JST-A and JST-B connectors
 
-- Main PCB had no remaining space for an OLED footprint
-- Routing the display on top of the chassis hides the main PCB for a cleaner look
-- Easy to detach/replace independently from the main board
-- Keeps the display wiring short and organised
+### Step 2 — Component Placement
 
-### OLED Board Schematic
+Components were placed manually, following these principles:
+
+- **LM2596 power section** — tight left-to-right cluster: input capacitor → IC → inductor → Schottky diode → output capacitor. Keeps the switching current loop short to minimise EMI.
+- **L298N** — centered on the board, freewheeling diodes grouped tightly around each output pair.
+- **ESP32-DEVKITC V1** — centered, GPIO pins facing the connector side to reduce trace crossings.
+- **JST-A and JST-B** — right edge of the board for clean external cable routing.
+- **J1/J2 screw terminals** — bottom edge for easy motor wire access.
+- **J3 power connector** — left edge, close to the LM2596 input.
+
+### Step 3 — Design Rules
+
+Configured via **File → Board Setup → Design Rules → Net Classes**:
+
+| Netclass | Track Width | Clearance | Applied To |
+|----------|------------|-----------|------------|
+| Default | 0.25 mm | 0.2 mm | All signal traces (GPIO, sensors, PWM) |
+| Power | 1.0 mm | 0.8 mm | GND, 8.4V battery rail, 5V rail, motor output nets |
+
+Power netclass assigned to: `GND`, `Net-(J3-Pin_2)` (8.4V battery), `Net-(JST-A1-Pin_1)` (5V rail), `Net-(J1-Pin_1/2)` (Motor A outputs), `Net-(J2-Pin_1/2)` (Motor B outputs).
+
+### Step 4 — Board Outline
+
+Rectangle drawn on the `Edge.Cuts` layer with ~5 mm clearance around all components using **Place → Rectangle**.
+
+### Step 5 — Mounting Holes
+
+4× `MountingHole_4.3x6.2mm_M4_Pad` placed at each corner for chassis standoff mounting. References set to H1–H4 (required for FreeRouter SES import compatibility).
+
+### Step 6 — DRC (pre-routing)
+
+Run via **Inspect → Design Rules Checker → Run DRC**:
+- 3 silkscreen overlap warnings — fixed
+- 0 footprint errors
+- 69 unconnected pads (expected before routing)
+
+### Step 7 — Auto-Routing with FreeRouter
+
+1. **File → Export → Specctra DSN**
+2. Open in FreeRouter, run the auto-router
+3. **File → Import → Specctra Session (.ses)**
+4. Review all traces manually and re-run DRC
+
+Post-import DRC found 28 violations: decorative text placed on F.Cu (causing trace conflicts), IC pad spacing vs. power clearance rule violations, and 3 dangling track stubs. All fixed:
+- Decorative text moved to F.Silkscreen layer
+- Power clearance reduced from 0.8 mm to 0.5 mm to match IC footprint pad spacing
+- 3 dangling stubs deleted
+
+Final DRC: **0 errors, 2 warnings** (mounting hole library mismatch — ignorable).
+
+![Routed PCB](pcb_routed.png)
+
+*Fully routed 2-layer PCB. Red = F.Cu, blue = B.Cu. Thick traces = Power netclass (0.8 mm), thin = Default (0.25 mm).*
+
+### Step 8 — Gerber Export & Manufacturing
+
+> Board is production-ready. Final DRC: 0 errors.
+
+1. **File → Plot** → Gerber format
+2. Export all layers: F.Cu, B.Cu, F.Silkscreen, B.Silkscreen, F.Mask, B.Mask, Edge.Cuts + drill files
+3. Submit to manufacturer — ordered as 2-layer, HASL finish, 5 copies
+
+Gerber files are in the `/gerber` folder of this repo.
+
+---
+
+### OLED Display Board
+
+A second small PCB was designed to mount a **SSD1306 128×32 I2C OLED** on top of the robot chassis. It sits above the main PCB, hides the main board from view, and connects back via the spare pins on JST-B.
+
+The board contains no active components — just 4 solder test pads (H1–H4) for wire routing, a 4-pin JST connector (J5), and the OLED module footprint. Gerber files are in the `/gerber` folder alongside the main board gerbers.
+
+**Why a separate board:**
+- The main PCB had no remaining space for an OLED footprint
+- Mounting on top of the chassis hides the main board for a cleaner look
+- Can be detached and replaced independently from the main board
+
+#### OLED Board Schematic
 
 ![OLED Schematic](oled_schematic.PNG)
 
-*J5 (4-pin JST) connects to H1 (GND), H2 (VCC), H3 (SCK), H4 (SDA) test pad holes. Wires run from these pads to the OLED module.*
+*J5 (4-pin JST) connects to H1 (GND), H2 (VCC), H3 (SCL), H4 (SDA). Short wires run from these pads to the OLED module pins.*
 
-### OLED Board PCB Layout
+#### OLED Board PCB Layout
 
 ![OLED PCB Layout](oled_pcb_layout.png)
 
-*Minimal PCB — 4 test pad holes + JST connector. Designed to sit on top of chassis.*
+*Minimal PCB — 4 test pad holes + JST connector. Sits on top of chassis above the main board.*
 
-### OLED Board 3D View
+#### OLED Board 3D View
 
 ![OLED 3D View](pcb_layout2.PNG)
 
-*3D render of the OLED board showing component placement.*
+#### OLED — JST-B Connection
 
-### JST-B Pinout — OLED Connection
+The OLED board connects using the spare pins on JST-B (the IR sensor connector):
 
-The OLED board connects via JST-B (IR sensor connector) spare pins:
-
-| JST-B Pin | Signal | OLED Board | ESP32 GPIO |
-|-----------|--------|-----------|-----------|
+| JST-B Pin | Signal | OLED Board Pad | ESP32 GPIO |
+|-----------|--------|---------------|-----------|
 | 6 | — spare — | — | — |
-| 7 | SDA | H4 | D4 — Pin 5 |
-| 8 | SCK | H3 | D5 — Pin 8 |
+| 7 | SDA | H4 | D4 (Pin 5) |
+| 8 | SCL | H3 | D5 (Pin 8) |
 | 9 | VCC (5V) | H2 | — |
 | 10 | GND | H1 | — |
 
-> ⚠️ **Voltage check:** Verify your OLED module accepts 5V on VCC. Many SSD1306 modules have an onboard 3.3V regulator and accept 5V input. Bare modules may require 3.3V only.
+> Verify your SSD1306 module accepts 5V on VCC. Most breakout modules have an onboard 3.3V LDO and accept 5V. Bare OLED modules without a regulator require 3.3V only.
 
-> ℹ️ **I2C remapping:** ESP32 default I2C pins (D21/D22) are both occupied. I2C is remapped in firmware using `Wire.begin(SDA_PIN, SCL_PIN)`.
+> The ESP32's default I2C pins (D21/D22) are both used by the motor driver. I2C is remapped to D4 (SDA) and D5 (SCL) inside the ESP-IDF I2C driver configuration in `oled.c`.
 
-### OLED Display Features
+#### OLED — What It Displays
 
-**Current:**
-- Battery voltage display
-- MQTT connection status
-- Current mode (MANUAL / LINE FOLLOW)
-- Robot state (FOLLOWING / AVOIDING / RECOVERING)
-
-**Planned:**
-- IR sensor states (3 indicators)
-- Ultrasonic distances (Left / Center / Right cm)
-
-### Build Log — OLED Board
-
-| Date | Entry |
-|------|-------|
-| 29 Apr 2026 | ECHO Right confirmed on D2 (Pin 4). D4 and D5 reserved for OLED SDA and SCL. |
-| 29 Apr 2026 | OLED board designed in KiCad. 128x32 SSD1306 I2C display. Separate PCB to mount on top of chassis. Connects via JST-B spare pins 7–10. Gerbers added to repo. |
+| Line | Content |
+|------|---------|
+| 1 | Battery voltage |
+| 2 | MQTT connection status |
+| 3 | Current mode (MANUAL / LINE FOLLOW) |
+| 4 | Robot state (FOLLOWING / AVOIDING / RECOVERING) |
 
 ---
 
-## PCB Layout
+## PCB Assembly & Testing
 
-![PCB Layout](pcb_layout.png)
+**Do not solder all components at once.** Bring up the power circuit first and verify the output voltage before soldering the ESP32 or any sensors. This protects the ESP32 from overvoltage if the trimpot is set incorrectly from the factory.
 
-*KiCad PCB layout — to be updated after routing is complete.*
+### Step 1 — Inspect the Received PCBs
+
+- Check for visible manufacturing defects: solder bridges, missing soldermask, lifted pads
+- Hold the PCB up to light to check copper layer alignment
+- Verify silkscreen labels match the schematic reference designators
+
+### Step 2 — Solder the Buck Converter Circuit Only
+
+Solder only the following components. Leave everything else unpopulated.
+
+| Ref | Component |
+|-----|-----------|
+| J3 | 2-pin JST power input connector |
+| U_LM2596 | LM2596S-ADJ IC |
+| D1 | SS34 Schottky diode — stripe (band) = cathode |
+| L1 | Inductor |
+| C_in | 220 µF electrolytic input capacitor — stripe = GND (negative) |
+| C_out | 220 µF electrolytic output capacitor — stripe = GND (negative) |
+| RV1 | Trimpot |
+| R1, R2 | 100 kΩ resistors (battery ADC voltage divider) |
+
+Do **not** solder: ESP32, L298N, JST-A, JST-B, J1/J2 screw terminals, or any sensors yet.
+
+### Step 3 — Set the Buck Converter Output to 5V
+
+This is the most critical step. The LM2596S-ADJ output voltage is set by RV1. If left at the wrong position it may output the full battery voltage (up to 8.4V) to the 5V rail, which will destroy the ESP32.
+
+1. Connect the 2S 18650 battery pack to J3 (Pin 1 = GND, Pin 2 = battery positive)
+2. Set your multimeter to DC voltage
+3. Place probes across the output capacitor C_out (or the 5V rail test points)
+4. Slowly adjust RV1 until the meter reads **5.0V**
+5. Confirm the reading is stable with no oscillation
+6. Disconnect the battery
+
+### Step 4 — Verify the Battery ADC Divider
+
+While the battery was connected in Step 3, or reconnect briefly now:
+
+- Measure the voltage at the midpoint of R1 and R2 (the trace going to D34)
+- With a fully charged 8.4V battery, you should read approximately **4.2V** (1:1 divider, 100 kΩ / 100 kΩ)
+- This confirms the voltage divider is correctly wired before the ESP32 is installed
+
+> The firmware ADC saturates when the divider midpoint exceeds ~3.1V, which corresponds to a battery voltage of ~6.2V. This is a hardware limitation — the battery reading shows ~6.2V on a healthy 2S pack and only starts falling below 6.2V when the pack is nearly depleted. The app thresholds are set at 6.0V / 5.5V to account for this.
+
+### Step 5 — Solder Remaining Components
+
+Now that the 5V rail is confirmed correct and safe:
+
+| Ref | Component |
+|-----|-----------|
+| U_L298N | L298N motor driver IC + all 8 Schottky freewheeling diodes |
+| U_ESP32 | ESP32-DEVKITC V1 |
+| JST-A | 10-pin connector (ultrasonic sensors) |
+| JST-B | 10-pin connector (IR sensors + OLED) |
+| J1, J2 | Screw terminals (motor A and motor B outputs) |
+
+Solder the OLED daughter board separately — it is a standalone PCB.
+
+### Step 6 — Power-On Verification
+
+1. Connect the battery to J3
+2. The ESP32 should boot — the onboard LED comes on
+3. Connect the ESP32 to a PC via USB
+4. Open a serial monitor at **115200 baud**
+5. You should see BLE provisioning log output: `I (xxx) PROV: advertising as "IoT-Robot"`
+
+If nothing appears on the serial monitor:
+- Check battery polarity on J3
+- Re-measure the 5V rail — must be 5V, not higher
+- Verify ESP32 is seated correctly and all pins are soldered
+
+### Step 7 — Connect and Test Sensors
+
+Connect sensors one at a time and watch the serial output:
+
+1. **IR sensors (JST-B)** — move a reflective object under each sensor; the digital output should toggle between 0 and 1
+2. **Ultrasonic sensors (JST-A)** — wave your hand in front of each sensor; distances should appear in the telemetry log
+3. **OLED board** — connect via JST-B spare pins 7–10; the display should show battery voltage and MQTT status after provisioning
+4. **Motors (J1, J2)** — connect motors and verify direction in manual mode via the Android app
+
+---
+
+## Chassis — 3D Printed
+
+The robot chassis is designed in **Autodesk Inventor** and 3D printed in PLA. The STEP file is in the root of this repo for reference and modification.
+
+![Chassis Assembly](assembly1.PNG)
+
+*Autodesk Inventor assembly — PCB on standoffs, motor mounts, battery compartment, and sensor positions.*
+
+**Design details:**
+- IR sensors mount on the underside, facing down toward the ground for line detection
+- HC-SR04 sensors mount on the front face in left, center, and right positions
+- Motor mounts are integrated into the chassis base
+- PCB sits on M4 standoffs matching the 4 corner mounting holes on the PCB
+- Battery compartment is accessible from the bottom of the chassis
+
+**Print settings used:** PLA, 0.2 mm layer height, 20% infill for non-structural sections, 50% infill for motor mounts and standoff pillars.
 
 ---
 
@@ -203,68 +312,68 @@ The OLED board connects via JST-B (IR sensor connector) spare pins:
 
 ### Motor Driver — L298N
 
-| L298N Pin | Label | ESP32 Pin | Type | Notes |
-|-----------|-------|-----------|------|-------|
-| IN1 | D13 | Pin 28 | Digital Output | Motor A direction |
-| IN2 | D14 | Pin 26 | Digital Output | Motor A direction |
-| EnA | D21 | Pin 11 | PWM Output | Motor A speed control |
-| IN3 | D27 | Pin 25 | Digital Output | Motor B direction |
-| IN4 | D26 | Pin 24 | Digital Output | Motor B direction |
-| EnB | D25 | Pin 23 | PWM Output | Motor B speed control |
+| L298N Signal | ESP32 Label | ESP32 Pin | Type |
+|-------------|-------------|-----------|------|
+| IN1 | D13 | Pin 28 | Digital Output — Motor A direction |
+| IN2 | D14 | Pin 26 | Digital Output — Motor A direction |
+| EnA | D21 | Pin 11 | PWM Output — Motor A speed |
+| IN3 | D27 | Pin 25 | Digital Output — Motor B direction |
+| IN4 | D26 | Pin 24 | Digital Output — Motor B direction |
+| EnB | D25 | Pin 23 | PWM Output — Motor B speed |
 
 ### Battery Monitor
 
-| Function | Label | ESP32 Pin | Notes |
-|----------|-------|-----------|-------|
-| Battery ADC | D34 | Pin 19 | R1/R2 voltage divider from J3 Pin 2 (8.4V max). Input-only, ADC1 — WiFi safe ✅ |
+| Function | ESP32 Label | ESP32 Pin | Notes |
+|----------|-------------|-----------|-------|
+| Battery ADC | D34 | Pin 19 | R1/R2 divider from J3 Pin 2. Input-only GPIO, ADC1 — WiFi safe |
 
 ### IR Line Sensors — JST-B (10-pin)
 
-| Sensor | Label | ESP32 Pin | Type | Notes |
-|--------|-------|-----------|------|-------|
-| IR Left | D32 | Pin 21 | Digital Input | ADC1 — WiFi/MQTT safe ✅ |
-| IR Center | D33 | Pin 22 | Digital Input | ADC1 — WiFi/MQTT safe ✅ |
-| IR Right | D15 | Pin 3 | Digital Input | Mild strapping pin — IR defaults LOW at boot ✅ |
+| Sensor | ESP32 Label | ESP32 Pin | Notes |
+|--------|-------------|-----------|-------|
+| IR Left | D32 | Pin 21 | ADC1 — WiFi/MQTT safe |
+| IR Center | D33 | Pin 22 | ADC1 — WiFi/MQTT safe |
+| IR Right | D15 | Pin 3 | Mild strapping pin — IR signal defaults LOW at boot, no conflict |
 
 ### Ultrasonic Sensors HC-SR04 (2021+) — JST-A (10-pin)
 
 | Sensor | TRIG Label | TRIG Pin | ECHO Label | ECHO Pin | Notes |
 |--------|-----------|----------|-----------|----------|-------|
-| Ultrasonic Left | D22 | Pin 14 | D35 | Pin 20 | ECHO input-only ADC1 ✅ |
-| Ultrasonic Center | D23 | Pin 15 | D19 | Pin 10 | Direct connection ✅ |
-| Ultrasonic Right | D18 | Pin 9 | D2 | Pin 4 | Direct connection ✅ |
+| Left | D22 | Pin 14 | D35 | Pin 20 | ECHO input-only GPIO, ADC1 |
+| Center | D23 | Pin 15 | D19 | Pin 10 | |
+| Right | D18 | Pin 9 | D2 | Pin 4 | GPIO2 = onboard LED — LED flashes with echoes (cosmetic, sensor reads correctly) |
 
-> ✅ HC-SR04 2021+: ECHO outputs 3.3V — direct connection, no voltage divider needed.
+> HC-SR04 2021+: ECHO outputs 3.3V logic — direct connection to ESP32, no voltage divider needed.
 
 ### JST Power Connector — J3 (2-pin)
 
 | Pin | Signal |
 |-----|--------|
 | 1 | GND |
-| 2 | 8.8V (LiPo input) |
+| 2 | Battery positive (8.4V fully charged) |
 
 ### Complete GPIO Map
 
 | Label | ESP32 Pin | Function | Type |
 |-------|-----------|----------|------|
-| D2 | Pin 4 | ECHO Right | Input |
+| D2 | Pin 4 | ECHO Right (ultrasonic) | Input |
 | D4 | Pin 5 | OLED SDA | I2C |
 | D5 | Pin 8 | OLED SCL | I2C |
 | D13 | Pin 28 | Motor A IN1 | Output |
 | D14 | Pin 26 | Motor A IN2 | Output |
 | D15 | Pin 3 | IR Right | Input |
-| D18 | Pin 9 | TRIG Right | Output |
-| D19 | Pin 10 | ECHO Center | Input |
-| D21 | Pin 11 | EnA Motor A | PWM Output |
-| D22 | Pin 14 | TRIG Left | Output |
-| D23 | Pin 15 | TRIG Center | Output |
-| D25 | Pin 23 | EnB Motor B | PWM Output |
+| D18 | Pin 9 | TRIG Right (ultrasonic) | Output |
+| D19 | Pin 10 | ECHO Center (ultrasonic) | Input |
+| D21 | Pin 11 | EnA — Motor A speed | PWM Output |
+| D22 | Pin 14 | TRIG Left (ultrasonic) | Output |
+| D23 | Pin 15 | TRIG Center (ultrasonic) | Output |
+| D25 | Pin 23 | EnB — Motor B speed | PWM Output |
 | D26 | Pin 24 | Motor B IN4 | Output |
 | D27 | Pin 25 | Motor B IN3 | Output |
 | D32 | Pin 21 | IR Left | Input — ADC1 |
 | D33 | Pin 22 | IR Center | Input — ADC1 |
-| D34 | Pin 19 | Battery ADC | Input — ADC1, input-only |
-| D35 | Pin 20 | ECHO Left | Input — ADC1, input-only |
+| D34 | Pin 19 | Battery ADC | Input — ADC1, input-only GPIO |
+| D35 | Pin 20 | ECHO Left (ultrasonic) | Input — ADC1, input-only GPIO |
 
 ---
 
@@ -272,10 +381,10 @@ The OLED board connects via JST-B (IR sensor connector) spare pins:
 
 ### JST-A — Ultrasonic Sensors (10-pin)
 
-| Pin | Signal | Label | ESP32 Pin |
-|-----|--------|-------|-----------|
-| 1 | 5V shared | — | — |
-| 2 | GND shared | — | GND |
+| Pin | Signal | ESP32 Label | ESP32 Pin |
+|-----|--------|-------------|-----------|
+| 1 | 5V (shared VCC) | — | — |
+| 2 | GND (shared) | — | GND |
 | 3 | TRIG Left | D22 | Pin 14 |
 | 4 | ECHO Left | D35 | Pin 20 |
 | 5 | TRIG Center | D23 | Pin 15 |
@@ -284,346 +393,363 @@ The OLED board connects via JST-B (IR sensor connector) spare pins:
 | 8 | ECHO Right | D2 | Pin 4 |
 | 9–10 | — spare — | — | — |
 
-### JST-B — IR Line Sensors (10-pin)
+### JST-B — IR Line Sensors + OLED (10-pin)
 
-| Pin | Signal | Label | ESP32 Pin |
-|-----|--------|-------|-----------|
-| 1 | 3.3V shared | — | — |
-| 2 | GND shared | — | GND |
+| Pin | Signal | ESP32 Label | ESP32 Pin |
+|-----|--------|-------------|-----------|
+| 1 | 3.3V (shared VCC) | — | — |
+| 2 | GND (shared) | — | GND |
 | 3 | IR Left | D32 | Pin 21 |
 | 4 | IR Center | D33 | Pin 22 |
 | 5 | IR Right | D15 | Pin 3 |
 | 6 | — spare — | — | — |
-| 7 | SDA (OLED) | D4 | Pin 5 |
-| 8 | SCK (OLED) | D5 | Pin 8 |
-| 9 | VCC 5V (OLED) | — | — |
-| 10 | GND (OLED) | GND | — |
+| 7 | OLED SDA | D4 | Pin 5 |
+| 8 | OLED SCL | D5 | Pin 8 |
+| 9 | OLED VCC (5V) | — | — |
+| 10 | OLED GND | — | GND |
 
-> VCC and GND are daisy-chained across all sensors within each connector group.
+VCC and GND are daisy-chained across all sensors within each connector group.
 
 ---
 
 ## Power System
 
 ```
-[Custom 2S 18650 Pack — 8.4V fully charged]
-      │
-    J3 JST (2-pin)
-      │
-      ├─── R1/R2 voltage divider ─── D34 Pin 19 (battery ADC — 8.4V max)
-      ├─── 220uF1 bulk capacitor (input filter)
-      ├─── L298N VS pin (motor supply, 8.8V direct)
-      │
-   LM2596S-ADJ (D1: SS34 Schottky, RV1 trimpot → FB → 5V out)
-   Output: 220uF4 capacitor
-      │
-     5V rail ──── HC-SR04 VCC (JST-A Pin 1)
-      │
-   ESP32-DEV VIN → onboard LDO → 3.3V rail ──── IR sensors VCC (JST-B Pin 1)
+[2S 18650 Battery Pack — 8.4V fully charged]
+          │
+       J3 (2-pin JST)  —  Pin 1: GND,  Pin 2: 8.4V
+          │
+          ├── R1 / R2 voltage divider (100 kΩ / 100 kΩ) ──── D34 Pin 19 (battery ADC)
+          ├── 220 µF bulk input capacitor
+          ├── L298N VS pin  (motors run from raw battery voltage)
+          │
+       LM2596S-ADJ  (D1: SS34 Schottky, RV1 trimpot → FB → 5V out)
+       Output: 220 µF capacitor
+          │
+         5V rail ─────────── HC-SR04 VCC (JST-A Pin 1)
+          │                  OLED VCC (JST-B Pin 9)
+          │
+       ESP32-DEV VIN ──── onboard LDO ──── 3.3V rail ──── IR sensor VCC (JST-B Pin 1)
 ```
+
+The motors are powered directly from the battery voltage through the L298N VS pin — they operate at the full battery voltage, not the regulated 5V. The 5V rail powers only the ultrasonic sensors and OLED. The ESP32's onboard LDO produces the 3.3V rail for IR sensors and internal logic.
 
 ---
 
 ## Motor Control
 
-Dual H-bridge via L298N. Speed via PWM on EnA/EnB, direction via IN1–IN4.
+The robot uses differential drive with the L298N dual H-bridge. Speed is controlled by PWM on the Enable pins (EnA/EnB). Direction is set by the IN1–IN4 logic inputs.
 
-| Channel | Enable (PWM) | Direction A | Direction B |
-|---------|-------------|-------------|-------------|
-| Motor A | D21 Pin 11 (EnA) | D13 Pin 28 (IN1) | D14 Pin 26 (IN2) |
-| Motor B | D25 Pin 23 (EnB) | D27 Pin 25 (IN3) | D26 Pin 24 (IN4) |
+### H-Bridge Truth Table (per channel)
 
-| IN1 | IN2 | Result |
-|-----|-----|--------|
+| IN_A | IN_B | Result |
+|------|------|--------|
 | HIGH | LOW | Forward |
 | LOW | HIGH | Reverse |
-| LOW | LOW | Coast |
+| LOW | LOW | Coast (free spin) |
 | HIGH | HIGH | Brake |
+
+### Differential Steering
+
+| Action | Motor A (Left) | Motor B (Right) |
+|--------|---------------|----------------|
+| Forward | Full speed | Full speed |
+| Turn Left | Reduced speed | Full speed |
+| Turn Right | Full speed | Reduced speed |
+| Hard Left | Stop | Full speed |
+| Hard Right | Full speed | Stop |
+| Reverse | Full back | Full back |
+| Spin Left | Full back | Full forward |
+| Spin Right | Full forward | Full back |
+
+> **Hardware note:** Motor A (left) has IN1 and IN2 wired backwards on the PCB. This is corrected in firmware inside the `drive()` function by inverting the polarity sent to PIN_IN1/PIN_IN2 for Motor A only. All higher-level motor commands (forward, reverse, turn, spin) are unaffected.
 
 ---
 
 ## Sensors
 
-### IR Line Sensors (x3)
+### IR Line Sensors (×3)
 
 3 IR reflectance sensors mounted under the chassis for line detection. Digital output, 3.3V modules, connected via JST-B.
 
-- All on ADC1 — WiFi/MQTT stays active ✅
-- No level shifting needed ✅
+- All three GPIOs are on ADC1 — WiFi and MQTT remain active while reading
+- No level shifting required (sensors output 3.3V logic)
+- Firmware applies a 2-consecutive-read debounce before accepting a new state
 
-**MQTT telemetry:** `robot/telemetry/ir`
+**MQTT telemetry topic:** `robot/telemetry/ir`
 ```json
 {"left": 0, "center": 1, "right": 0}
 ```
 
-### Ultrasonic Sensors HC-SR04 2021+ (x3)
+`1` = line detected (dark surface), `0` = no line (bright surface).
 
-3 ultrasonic sensors for obstacle detection (left, center, right), connected via JST-A.
+### Ultrasonic Sensors HC-SR04 2021+ (×3)
 
-- Powered from 5V rail
-- ECHO: direct connection to ESP32 — no divider needed ✅
+3 ultrasonic distance sensors for obstacle detection (left, center, right), connected via JST-A. Powered from the 5V rail.
 
-**MQTT telemetry:** `robot/telemetry/ultrasonic`
+ECHO connects directly to ESP32 GPIO — no voltage divider required (2021+ version outputs 3.3V logic).
+
+Distance measurement uses an **interrupt-driven ISR** (`GPIO_INTR_ANYEDGE`). The rising edge records a timestamp in µs; the falling edge computes the distance as `pulse_us / 58`. This replaces the earlier polling approach, which missed short echo pulses at distances under ~170 cm.
+
+**MQTT telemetry topic:** `robot/telemetry/ultrasonic`
 ```json
 {"left": 24, "center": 8, "right": 31}
 ```
 
+Values are in centimetres.
+
 ---
 
-## Android App & MQTT Control
+## Firmware — Build & Flash
 
-Custom Android app (Android Studio) communicates with the ESP32 over MQTT. The broker runs **embedded inside the APK** — no external server or cloud needed.
+The firmware is written in **C using ESP-IDF v5.4.1**. No Arduino framework, no PlatformIO.
 
-### Architecture
+### Project Structure
 
 ```
-[Android App]
-      ├── Embedded MQTT Broker (Moquette / HiveMQ, port 1883)
-      └── MQTT Client
-                │
-           Local WiFi
-                │
-        [ESP32-DEV DEVKITC V1]
-                │
-         Motors / Sensors
+firmware/
+├── CMakeLists.txt          — project root (IDF project)
+├── sdkconfig.defaults      — NimBLE enabled, 8 KB main stack
+└── main/
+    ├── CMakeLists.txt      — lists all source files and dependencies
+    ├── main.c              — app_main + 10 ms main loop
+    ├── config.h            — all pin definitions and constants
+    ├── provisioning.c/h    — BLE credential provisioning (NimBLE + NVS)
+    ├── sensors.c/h         — IR, ultrasonic (ISR-driven), battery ADC
+    ├── state_machine.c/h   — autonomy logic + motor control
+    ├── mqtt.c/h            — WiFi STA + esp-mqtt client (event-driven)
+    └── oled.c/h            — SSD1306 raw I2C driver + 5×7 font (no external lib)
 ```
 
-### MQTT Topics
+### Firmware Architecture
 
-| Topic | Direction | Description |
-|-------|-----------|-------------|
-| `robot/control/move` | App → ESP32 | `forward` / `back` / `left` / `right` / `stop` |
-| `robot/control/speed` | App → ESP32 | PWM value 0–255 |
-| `robot/control/mode` | App → ESP32 | `manual` or `line_follow` |
-| `robot/telemetry/ir` | ESP32 → App | IR sensor states JSON |
-| `robot/telemetry/ultrasonic` | ESP32 → App | Distance readings JSON (cm) |
-| `robot/telemetry/battery` | ESP32 → App | Battery voltage (V) |
-
-### Control Modes
-
-Toggled by a single button in the app. Accelerometer listener is registered/unregistered on toggle to preserve battery.
-
-**Mode 1 — Accelerometer tilt:**
-
-| Tilt | Action |
-|------|--------|
-| Forward | Move forward |
-| Backward | Reverse |
-| Left | Steer left |
-| Right | Steer right |
-| Flat | Stop |
-
-**Mode 2 — WASD buttons:**
 ```
-      [ W ]
- [ A ][ S ][ D ]
-      [STP]
+app_main
+  ├── provisioning_init()   — blocks on first boot (BLE); loads NVS on subsequent boots
+  ├── sensors_init()        — configures GPIO, ISR handlers, ADC
+  ├── state_machine_init()  — initialises LEDC channels and motor GPIOs
+  ├── mqtt_init()           — blocks until WiFi + MQTT connected
+  └── oled_init()           — I2C probe, skip gracefully if no OLED
+
+Main loop (10 ms period)
+  ├── sensors_read_ir()
+  ├── sensors_read_ultrasonic()
+  ├── sensors_read_battery()
+  ├── state_machine_update()
+  ├── every 100 ms → mqtt_publish_telemetry()
+  └── every 500 ms → oled_update()
 ```
 
-### Telemetry Dashboard
+### Building on Windows (Docker + WSL2)
 
-| Widget | Topic | Notes |
-|--------|-------|-------|
-| IR indicators | `robot/telemetry/ir` | 3 visual dot indicators |
-| Ultrasonic distances | `robot/telemetry/ultrasonic` | Live cm readouts L/C/R |
-| Battery voltage | `robot/telemetry/battery` | Color-coded (green/amber/red) |
-| Connection status | Internal | Two indicators: BROKER (Moquette) + MQTT (ESP32) |
+Build runs inside a Docker Dev Container. Flashing runs via WSL2 Ubuntu.
 
-### ESP32 Firmware — MQTT (ESP-IDF)
+**One-time setup:**
 
-WiFi and MQTT are event-driven via `esp_mqtt_client`. The client runs in its own task — no polling loop needed. Credentials (SSID, password, broker IP) come from NVS after BLE provisioning.
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop)
+2. Install WSL2 Ubuntu — PowerShell as Administrator:
+   ```
+   wsl --install -d Ubuntu
+   ```
+3. Install usbipd — PowerShell as Administrator:
+   ```
+   winget install usbipd
+   ```
+4. Inside Ubuntu terminal, install esptool:
+   ```bash
+   sudo apt update && sudo apt install pipx -y
+   pipx install esptool
+   pipx ensurepath
+   source ~/.bashrc
+   ```
+5. Add yourself to the dialout group (then close and reopen the Ubuntu terminal):
+   ```bash
+   sudo usermod -aG dialout $USER
+   ```
+
+**Build (each session):**
+
+1. Make sure Docker Desktop is running
+2. Open the `mqttvision` folder in VS Code
+3. `Ctrl+Shift+P` → **Dev Containers: Reopen in Container**
+4. In the integrated terminal:
+   ```bash
+   cd /project/firmware
+   idf.py build
+   ```
+
+**Flash (each session):**
+
+1. Attach the ESP32 to WSL2 — PowerShell as Administrator:
+   ```
+   usbipd list
+   usbipd bind --busid <BUSID>
+   usbipd attach --wsl --busid <BUSID>
+   ```
+   The BUSID is listed next to "Silicon Labs CP210x" or "CH340". It may change if you use a different USB port.
+
+2. Fix USB permissions if needed — Ubuntu terminal:
+   ```bash
+   sudo chmod 666 /dev/ttyUSB0
+   ```
+
+3. Flash — Ubuntu terminal:
+   ```bash
+   cd /mnt/c/Users/<you>/Desktop/mqttvision/firmware/build
+   esptool.py --chip esp32 -p /dev/ttyUSB0 -b 460800 --before default_reset --after hard_reset write_flash @flash_args
+   ```
+
+4. Open the serial monitor:
+   ```bash
+   screen /dev/ttyUSB0 115200
+   ```
+   Exit with `Ctrl+A` then `K`.
+
+**Erase flash** (when NVS needs clearing — e.g. stale WiFi credentials):
+```bash
+esptool.py --chip esp32 -p /dev/ttyUSB0 erase_flash
+```
+Then re-flash using Step 3 above.
+
+### Building on Linux (Arch / Ubuntu native)
+
+**One-time setup (Arch):**
+```bash
+sudo pacman -S git cmake ninja python python-pip python-pipx
+sudo usermod -aG uucp $USER        # log out and back in after this
+git clone --recursive https://github.com/espressif/esp-idf.git ~/esp/idf
+cd ~/esp/idf && git checkout v5.4.1 && ./install.sh esp32
+echo 'source ~/esp/idf/export.sh' >> ~/.bashrc && source ~/.bashrc
+idf.py --version                   # should show ESP-IDF v5.4.1
+```
+
+**Build and flash:**
+```bash
+cd path/to/mqttvision/firmware
+idf.py build
+idf.py -p /dev/ttyUSB0 flash monitor
+```
+
+If permission is denied on `/dev/ttyUSB0`: `sudo chmod 666 /dev/ttyUSB0` (permanent: `sudo usermod -aG uucp $USER` then log out/in).
+
+### Key Constants (config.h)
 
 ```c
-// mqtt.c excerpt — event handler
-case MQTT_EVENT_CONNECTED:
-    esp_mqtt_client_subscribe(s_client, "robot/control/move",  0);
-    esp_mqtt_client_subscribe(s_client, "robot/control/mode",  0);
-    esp_mqtt_client_subscribe(s_client, "robot/control/speed", 0);
-    break;
-case MQTT_EVENT_DATA:
-    if      (strcmp(topic, TOPIC_MOVE)  == 0) state_machine_set_move(msg);
-    else if (strcmp(topic, TOPIC_MODE)  == 0) state_machine_set_mode(...);
-    else if (strcmp(topic, TOPIC_SPEED) == 0) state_machine_set_speed(atoi(msg));
-    break;
+/* Motor pins — L298N */
+#define PIN_IN1   13    /* Motor A direction (wired backwards on PCB — corrected in drive()) */
+#define PIN_IN2   14
+#define PIN_ENA   21    /* Motor A speed (PWM) */
+#define PIN_IN3   27    /* Motor B direction */
+#define PIN_IN4   26
+#define PIN_ENB   25    /* Motor B speed (PWM) */
+
+/* IR sensors */
+#define PIN_IR_LEFT    32
+#define PIN_IR_CENTER  33
+#define PIN_IR_RIGHT   15
+#define IR_LINE_VALUE   0    /* GPIO level when sensor is on a dark line */
+#define IR_DEBOUNCE_READS  2
+
+/* Ultrasonic sensors */
+#define PIN_TRIG_LEFT    22
+#define PIN_ECHO_LEFT    35
+#define PIN_TRIG_CENTER  23
+#define PIN_ECHO_CENTER  19
+#define PIN_TRIG_RIGHT   18
+#define PIN_ECHO_RIGHT    2  /* GPIO2 = onboard LED — flashes with echoes (cosmetic only) */
+#define ULTRA_TIMEOUT_US  25000  /* ~4 m max range, abort echo wait after this */
+
+/* OLED I2C */
+#define PIN_OLED_SDA   4
+#define PIN_OLED_SCL   5
+#define OLED_ADDRESS   0x3C
+
+/* Battery ADC — GPIO34, ADC1_CH6 */
+#define PIN_BATTERY      34
+#define BATTERY_R1       100000.0f
+#define BATTERY_R2       100000.0f
+
+/* Speed — 8-bit PWM duty (0–255) */
+#define SPEED_BASE        150   /* default speed, overridden by app slider */
+#define SPEED_AVOID        90   /* cautious obstacle avoidance speed */
+#define SPEED_CORRECTION   75   /* gentle correction turn speed */
+#define SPEED_POST_CORR    80   /* forward speed when re-acquiring line */
+#define SPEED_RAMP_STEP     2   /* PWM duty added per 10 ms tick while on-line */
+
+/* Obstacle thresholds (cm) */
+#define OBSTACLE_WARN_CM  20
+#define OBSTACLE_STOP_CM  12
+
+/* State machine timing */
+#define RECOVERY_SWEEP_MS    2000
+#define RECOVERY_SPIN_MS     5000
+#define AVOID_MIN_MS          500
+#define POST_AVOID_FWD_MS     600
+#define RECOVERY_CREEP_MS     150
+
+/* Loop intervals */
+#define TELEMETRY_INTERVAL_MS  100
+#define OLED_UPDATE_MS         500
+#define MAIN_LOOP_MS            10
+
+/* BLE provisioning window on every boot */
+#define BLE_PROV_WINDOW_MS  30000
 ```
 
----
+### Autonomous Mode — State Machine
 
-## PCB Development Process
+The firmware runs a 3-state machine when in autonomous (line-follow) mode:
 
-This project uses **KiCad** for schematic capture and PCB layout.
+```
+         ┌──────────────┐
+    ┌───▶│  FOLLOWING   │◀────────────┐
+    │    └──────┬───────┘             │
+    │           │ obstacle < 20 cm    │ line found
+    │           ▼                     │
+    │    ┌──────────────┐             │
+    │    │   AVOIDING   │             │
+    │    └──────┬───────┘             │
+    │           │ line lost (0,0,0)   │ line found
+    │           ▼                     │
+    │    ┌──────────────┐             │
+    └────│  RECOVERING  │─────────────┘
+         └──────────────┘
+               │ no line after 5 s
+               ▼
+            STOP — await manual override via MQTT
+```
 
-### Step 1 — Schematic Design
+**FOLLOWING** — normal line tracking using the IR truth table below. In the table, `1` = line detected (sensor on dark surface), `0` = not on line.
 
-Built in KiCad's schematic editor. Several components were not in KiCad's default libraries and imported manually:
+| IR Left | IR Center | IR Right | Action |
+|---------|-----------|---------|--------|
+| 0 | 1 | 0 | Forward — centered on line |
+| 0 | 1 | 1 | Curve right gently |
+| 1 | 1 | 0 | Curve left gently |
+| 0 | 0 | 1 | Turn right hard |
+| 1 | 0 | 0 | Turn left hard |
+| 1 | 1 | 1 | All sensors on line — forward |
+| 1 | 0 | 1 | Junction or crossing — continue forward |
+| 0 | 0 | 0 | Line lost — enter RECOVERING |
 
-- ESP32-DEV DEVKITC V1
-- LM2596S-ADJ
-- L298N
-- JST connectors (JST-A, JST-B)
+**AVOIDING** — triggered when any ultrasonic sensor reads < 20 cm. Robot curves around the obstacle using the left/right distance comparison to choose which side to go, keeping the outer IR sensor tracking the line edge for as long as possible.
 
-📁 **Custom footprints are in the `/footprints` folder of this repo.**
+**RECOVERING** — all IR sensors show 0 (line lost):
+1. Remember which side sensor was last active
+2. Slow down, turn that direction for up to 2 s
+3. If line is found → return to FOLLOWING
+4. If not found after 2 s → slow 360° spin scan
+5. If still not found → stop and wait for manual override via MQTT
 
-### Step 2 — Component Placement
-
-Placed manually following these principles:
-
-- **LM2596 power section** — tight left-to-right cluster: input cap → IC → inductor → diode → output cap, minimizing switching loop and EMI
-- **L298N** — centrally placed, freewheeling diodes grouped around each output pair
-- **ESP32-DEV** — centered, signal pins facing connectors to reduce trace crossings
-- **JST-A & JST-B** — right board edge for easy cable access
-- **J1/J2 screw terminals** — bottom edge for easy motor wire access
-- **J3 power connector** — left edge, close to LM2596 input
-
-### Step 2b — Design Rules (KiCad Board Setup)
-
-Configured via **File → Board Setup → Design Rules → Net Classes**:
-
-| Netclass | Track Width | Clearance | Applied To |
-|----------|------------|-----------|------------|
-| Default | 0.25mm | 0.2mm | All signal traces (GPIO, sensors, PWM) |
-| Power | 1.0mm | 0.8mm | GND, 8.8V, 5V, motor output nets |
-
-**Power netclass assigned to:**
-- `GND`
-- `Net-(J3-Pin_2)` — 8.8V input
-- `Net-(JST-A1-Pin_1)` — 5V rail
-- `Net-(J1-Pin_1)`, `Net-(J1-Pin_2)` — Motor A outputs
-- `Net-(J2-Pin_1)`, `Net-(J2-Pin_2)` — Motor B outputs
-
----
-
-### Step 3 — Board Outline (Edge.Cuts)
-
-Rectangle drawn on `Edge.Cuts` layer with ~5mm margin around all components using **Place → Rectangle**.
-
-### Step 4 — Mounting Holes
-
-4x **MountingHole_4.3x6.2mm_M4_Pad** placed in each corner for chassis mounting.
-
-### Step 5 — DRC
-
-Run via **Inspect → Design Rules Checker → Run DRC**:
-- 3 silkscreen warnings → **fixed** ✅
-- 0 footprint errors ✅
-- 69 unconnected pads — expected pre-routing
-
-### Step 6 — Auto-Routing with FreeRouter ✅
-
-1. **File → Export → Specctra DSN**
-2. Open in FreeRouter, run auto-router
-3. **File → Import → Specctra Session**
-4. Review traces, re-run DRC
-
-![Routed PCB](pcb_routed.png)
-
-*Fully routed 2-layer PCB — red = F.Cu, blue = B.Cu, thick traces = Power netclass (0.8mm), thin traces = Default netclass (0.25mm)*
-
-### Step 7 — Gerber Export & Manufacturing ✅
-
-> Board is production ready — DRC passes with 0 errors, 2 ignorable mounting hole warnings.
-
-1. **File → Plot** → Gerber format
-2. Export copper layers, silkscreen, soldermask, Edge.Cuts + drill files
-3. Submit to manufacturer (e.g. JLCPCB, PCBWay)
-
-📁 **Gerber files are in the `/gerber` folder of this repo.**
-
-1. **File → Plot** → Gerber format
-2. Export copper layers, silkscreen, soldermask, Edge.Cuts + drill files
-3. Submit to manufacturer (e.g. JLCPCB, PCBWay)
-
-📁 **Gerber files are located in the `/gerber` folder of this repo.**
-
-1. **File → Plot** → Gerber format
-2. Export copper layers, silkscreen, soldermask, Edge.Cuts + drill files
-3. Submit to manufacturer (e.g. JLCPCB, PCBWay)
+In **manual mode**, the state machine is bypassed entirely. MQTT move commands drive the motors directly.
 
 ---
 
-## Known Issues & Planned Fixes
+## Android App
 
-| Priority | Issue | Status |
-|----------|-------|--------|
-| 🔴 Critical | LM2596 trimpot-only FB risk — wiper failure could send 8.8V to ESP32. Fix: R_upper 1kΩ (VOUT→FB) + R_lower 1kΩ (FB→GND), RV1 in series with R_lower | ⏳ Next revision |
-| 🟡 Warning | Low-ESR capacitor recommended on LM2596 220uF output | 🔍 To verify |
-| 🟢 OK | L298N diodes — repurposed from module, correct Schottky type ✅ | ✅ |
-| 🟢 OK | LM2596 D1 = SS34 Schottky ✅ | ✅ |
-| 🟢 OK | HC-SR04 2021+ — ECHO direct to GPIO, no divider needed ✅ | ✅ |
-| 🟢 OK | All IR GPIOs on ADC1 — WiFi/MQTT safe ✅ | ✅ |
-| 🟢 OK | No strapping pin conflicts in final pinout ✅ | ✅ |
-| 🟢 OK | D34 battery ADC — ADC1, input-only, WiFi safe ✅ | ✅ |
-| 🟢 OK | J3 JST: Pin1=GND, Pin2=8.8V ✅ | ✅ |
-| 🟢 OK | 100nF decoupling not added — ESP32-DEVKITC has it built in ✅ | ✅ |
-| 🟢 OK | D36/D39 non-existent on DEVKITC V1 — replaced with D19 and D2 ✅ | ✅ |
-| 🟢 OK | BLE device invisible after first provisioning (NVS credentials skipped BLE entirely) — fixed with re-provision window + `fresh` NVS flag ✅ | ✅ |
-| 🟢 OK | BLE and WiFi radio conflict — NimBLE kept alive after window, competing with WiFi — fixed with `stop_nimble()` clean handoff ✅ | ✅ |
-| 🟢 OK | OLED I2C flooding serial (720ms/update) when no hardware connected — fixed with `i2c_master_probe()` presence check ✅ | ✅ |
-| 🟢 OK | Android broker IP returning cellular IP on dual-SIM phones — fixed by filtering `allNetworks` for WiFi transport ✅ | ✅ |
-| 🟢 OK | Moquette failing silently (`catch Exception` missing Netty Throwable errors) — fixed with `catch Throwable` + `data_path → filesDir` ✅ | ✅ |
-| 🟢 OK | ESP32 ignoring speed slider (no `robot/control/speed` subscription) — added subscription + `state_machine_set_speed()` ✅ | ✅ |
+The Android app is built in **Kotlin** with **Jetpack Compose** (no XML layouts), targeting **API 29 (Android 10+)**. It embeds a full MQTT broker — no external server or cloud service needed.
 
----
-
-## Build Log
-
-| Date | Entry |
-|------|-------|
-| 24 Apr 2026 | Rev 1 schematic complete. ESP32 + LM2596 + L298N architecture established. |
-| 24 Apr 2026 | EnA strapping conflict on D12 found and corrected → D21. |
-| 24 Apr 2026 | R1/R2 confirmed as battery ADC divider, not LM2596 feedback. |
-| 24 Apr 2026 | L298N repurposed from module — correct Schottky diodes confirmed. |
-| 24 Apr 2026 | Android MQTT app architecture defined — embedded broker, dual control modes, telemetry dashboard. |
-| 25 Apr 2026 | JST-A (ultrasonic) and JST-B (IR) connectors added to schematic and PCB. |
-| 25 Apr 2026 | Full GPIO conflict check — all pins verified clean. |
-| 25 Apr 2026 | HC-SR04 confirmed 2021+ — voltage dividers removed from design. |
-| 25 Apr 2026 | Final GPIO assignments locked in. LM2596 D1 = SS34 Schottky confirmed. |
-| 25 Apr 2026 | Schematic Rev 2 exported — JST-A and JST-B fully connected. |
-| 27 Apr 2026 | PCB design completed. L298N diode orientation cleaned up — all 8 diodes consistent A/C. |
-| 27 Apr 2026 | Incorrect ESP32 footprint (WROOM-32D) found and corrected → ESP32-DEV DEVKITC V1. Footprints uploaded to repo. |
-| 27 Apr 2026 | All pin numbers updated to DEVKITC V1 layout. D36/D39 replaced with D19/D4. 16 GPIOs used, 0 conflicts, 9 spare. |
-| 27 Apr 2026 | DRC run — 3 silkscreen warnings fixed. 0 footprint errors. |
-| 29 Apr 2026 | PCB Rev 3 — OLED board added. ECHO Right moved from D4 to D2 (Pin 4). D4 and D5 assigned to OLED SDA and SCL. JST-B pins 7–10 assigned to OLED board. |
-| 27 Apr 2026 | JST connector found to be placed upside down — fixed by flipping in KiCad PCB editor. |
-| 27 Apr 2026 | Mounting hole references fixed from numeric (1,2,3,4) to H1,H2,H3,H4 to resolve SES import error. |
-| 27 Apr 2026 | FreeRouter completed with 0 unrouted connections. Power netclass: 0.8mm trace, 0.7mm clearance. Signal: 0.25mm trace, 0.2mm clearance. |
-| 27 Apr 2026 | SES imported into KiCad. DRC shows 0 unconnected pads, 0 footprint errors. 28 violations to fix: decorative text on F.Cu layer causing trace conflicts, IC pad spacing vs power clearance rule, 3 dangling track stubs. |
-| 27 Apr 2026 | Fixed all DRC errors: moved decorative text to F.Silkscreen, reduced Power clearance to 0.5mm to match IC footprint pad spacing, deleted 3 dangling track stubs. |
-| 27 Apr 2026 | PCB routing complete. Final DRC: 0 errors, 2 warnings (mounting hole library mismatch — ignorable). Board is production ready. |
-| 27 Apr 2026 | GitHub URL added to PCB silkscreen: github.com/ariknel/mqtt-vision-robot |
-| 27 Apr 2026 | Gerber files exported from KiCad and uploaded to /gerber folder in GitHub repo. Board ready for manufacturing. |
-| 27 Apr 2026 | Power source clarified: custom 2S 18650 battery pack (8.4V fully charged), charged via Hailege 2S USB-C BMS boost charger module. |
-| 27 Apr 2026 | Gerber files exported from KiCad and uploaded to `/gerber` folder in GitHub repo. Board ready for manufacturing. |
-| 27 Apr 2026 | Android app development started — planning and details to be discussed. |
-| 30 Apr 2026 | Final gerber review — main PCB and OLED board gerbers cross-checked. All layers verified (F.Cu, B.Cu, F.Silkscreen, B.Silkscreen, F.Mask, B.Mask, Edge.Cuts, drill). |
-| 2 May 2026 | Main PCB and OLED board ordered from manufacturer (JLCPCB). 2-layer, HASL finish, 5 copies each. |
-| 3 May 2026 | Firmware development started. Core module headers defined: motors.h, sensors.h, state_machine.h, mqtt_client.h, oled.h, provisioning.h. |
-| 4 May 2026 | motors.cpp and sensors.cpp implemented. L298N PWM control via ledcWrite, IR debouncing (2 consecutive reads), non-blocking ultrasonic round-robin, battery ADC with voltage divider scaling. |
-| 6 May 2026 | state_machine.cpp implemented — 4-state machine (MANUAL / FOLLOWING / AVOIDING / RECOVERING). MQTT client implemented — WiFi connect, PubSubClient subscribe/publish, telemetry JSON at 100ms. |
-| 7 May 2026 | provisioning.cpp implemented — BLE service exposes JSON characteristic, credentials written to NVS, startup blocked until provisioned. Credentials persist across reboots. |
-| 7 May 2026 | oled.cpp completed — mode and robot state added to display (line 3). Battery voltage and MQTT status on lines 1–2. |
-| 8 May 2026 | main.cpp completed — setup/loop orchestration, telemetry published every 100ms, OLED updated every 500ms. All modules wired together and compiling. |
-| 10 May 2026 | CLAUDE.md created. README audited and updated: OLED feature status corrected, OBSTACLE_STOP_CM fixed (15→12), BLE provisioning section added, firmware build log filled in. |
-| 10 May 2026 | Auto-changelog hook configured in Claude Code settings — Claude now updates this Build Log automatically after every code change. |
-| 11 May 2026 | Firmware refactor: removed dead stubs, updated LEDC API, stripped comment blocks. |
-| 11 May 2026 | **Full migration from Arduino to ESP-IDF v5.x.** All `.cpp` files replaced with clean `.c` files. Arduino framework, PubSubClient, ArduinoJson, and Adafruit SSD1306 removed. Motors merged into `state_machine.c` (only caller). BLE: NimBLE (half RAM of Bluedroid, declarative GATT). MQTT: esp-mqtt event-driven client. ADC: adc_oneshot API. PWM: LEDC native. I2C: legacy driver with raw SSD1306 init + 5×7 built-in font. WiFi provisioning char now has WRITE+NOTIFY — app receives "OK"/"ERR" confirmation. Project restructured into proper ESP-IDF layout (`firmware/main/`). |
-| 19 May 2026 | PCB Arrived, assembled components, tested voltage regulator circuit = working, rest needs checking |
-| 22 May 2026 | Soldered and assembled everything inside the shell, started testing bluetooth provisioning (functional, few bugs: false positive on connecting inside app, mqtt connection status is false - should only show connected when device is connected, not as status indicator, gpios l298 not yet tested, gpios sensor watchdog trigger error |
-| 26 May 2026 | tested motor driver, functional, added mechanical on off switch to battery |
-| 28 May 2026 | Manual mode functional, receiving ir sensor input inside app, ultrasonic sensors i2c issues yet ti be solved |
----
-
-## Android App — MQTT Vision Robot
-
-### Overview
-
-The Android app is built in **Kotlin** with **Android Studio**, targeting **API 29 (Android 10+)**. It uses a game-controller style UI with big WASD buttons and an accelerometer tilt mode. All communication with the ESP32 happens over **MQTT** on the local WiFi network.
-
-The key design decision is simplicity and reliability: the broker runs embedded inside the app as a foreground service, the MQTT client reconnects automatically, and all sensor data flows in one direction (ESP32 → App) while all control commands flow the other way (App → ESP32).
-
----
-
-### How It Connects to the ESP32
+### Architecture
 
 ```
 [Android Phone]
@@ -641,121 +767,59 @@ The key design decision is simplicity and reliability: the broker runs embedded 
             └── Publishes:  robot/telemetry/#
 ```
 
-The phone's IP address on the local network is the broker address. The ESP32 connects to that IP on port 1883. No internet, no cloud, no external server — everything runs locally.
+The phone's local WiFi IP address acts as the broker address. The ESP32 learns this IP during BLE provisioning and connects on port 1883.
 
-**Connection flow:**
-1. App launches → Moquette broker starts as foreground service on port 1883 (writes H2 store to `filesDir`)
-2. `MainActivity` polls `MqttBrokerService.isRunning` (Compose state), then Eclipse Paho connects to `localhost:1883`
-3. ESP32 boots → 30-second BLE window → window expires → WiFi connects → esp-mqtt connects to phone IP:1883
-4. Handshake complete → telemetry starts flowing, controls start working
+**Connection sequence:**
+1. App launches → Moquette broker starts as a foreground service on port 1883
+2. `MainActivity` waits for `MqttBrokerService.isRunning`, then Paho connects to `localhost:1883`
+3. ESP32 boots → 30-second BLE window expires → WiFi connects → esp-mqtt connects to phone IP:1883
+4. Handshake complete — telemetry flows in, controls work
 
----
-
-### How Information Flows
-
-#### ESP32 → App (Telemetry)
-
-The ESP32 publishes sensor readings every ~100ms to these topics:
-
-| Topic | Payload | Example |
-|-------|---------|---------|
-| `robot/telemetry/ir` | JSON | `{"left":0,"center":1,"right":0}` |
-| `robot/telemetry/ultrasonic` | JSON | `{"left":24,"center":8,"right":31}` |
-| `robot/telemetry/battery` | Float string | `8.21` |
-| `robot/telemetry/speed` | JSON | `{"a":180,"b":180}` |
-
-The app subscribes to `robot/telemetry/#` (wildcard) — any telemetry topic hits the same callback, which parses the JSON and updates the UI on the main thread.
-
-#### App → ESP32 (Control)
-
-The app publishes commands when the user interacts:
-
-| Topic | Payload | Trigger |
-|-------|---------|---------|
-| `robot/control/move` | `forward` / `back` / `left` / `right` / `stop` | Button press / tilt |
-| `robot/control/speed` | `0`–`255` | Speed slider |
-| `robot/control/mode` | `manual` / `line_follow` | Mode toggle |
-
-Commands are published with **QoS 0** (fire and forget) — fast and no overhead. Telemetry is also QoS 0. For a robot this is correct: a missed packet is irrelevant because the next one arrives within 100ms anyway.
-
----
-
-### App Structure
-
-Built with **Jetpack Compose** (no XML fragments). All screens are Composable functions.
+### File Structure
 
 ```
 MqttVisionRobot/app/src/main/java/com/ariknel/mqttvisionrobot/
 ├── MainActivity.kt           — entry point, broker lifecycle, screen routing
 ├── MqttBrokerService.kt      — Moquette broker as Android foreground service
 ├── MqttClientManager.kt      — Eclipse Paho client, publish helpers
-├── BleProvisioningManager.kt — BLE scan, connect, write credentials, notify
+├── BleProvisioningManager.kt — BLE scan, connect, write credentials, receive reply
 ├── RobotState.kt             — global Compose state (telemetry, connection, mode)
 ├── TelemetryParser.kt        — parses robot/telemetry/# JSON into RobotState
 ├── RobotControlScreen.kt     — main control UI (StatusBar, D-pad, speed, tilt, telemetry)
 └── ProvisioningScreen.kt     — BLE provisioning form (auto-detects broker IP)
 ```
 
----
+### MQTT Topics
 
-### Key Components
+| Topic | Direction | Payload |
+|-------|-----------|---------|
+| `robot/control/move` | App → ESP32 | `forward` / `back` / `left` / `right` / `stop` |
+| `robot/control/speed` | App → ESP32 | PWM value `0`–`255` |
+| `robot/control/mode` | App → ESP32 | `manual` or `line_follow` |
+| `robot/telemetry/ir` | ESP32 → App | `{"left":0,"center":1,"right":0}` |
+| `robot/telemetry/ultrasonic` | ESP32 → App | `{"left":24,"center":8,"right":31}` |
+| `robot/telemetry/battery` | ESP32 → App | `8.21` (float string, volts) |
+| `robot/telemetry/speed` | ESP32 → App | `{"a":180,"b":180}` |
 
-#### MqttBrokerService
-Runs Moquette as an Android **foreground service** — this keeps the broker alive even if the app goes to the background. Shows a persistent notification. Starts when the app opens, stops when the app is fully closed.
+All messages use **QoS 0** (fire-and-forget). At a 100 ms telemetry rate, a missed packet is irrelevant.
 
-#### MqttClientManager
-Singleton that wraps the Eclipse Paho client. Handles:
-- Auto-reconnect on connection loss
-- Single callback entry point for all incoming messages
-- Clean publish method used everywhere in the app
+### Telemetry Dashboard
 
-#### ControlFragment — Two Modes
+| Widget | Source | Notes |
+|--------|--------|-------|
+| IR indicators | `robot/telemetry/ir` | 3 dot indicators — filled = line detected |
+| Ultrasonic distances | `robot/telemetry/ultrasonic` | Live cm readouts Left / Center / Right |
+| Battery voltage | `robot/telemetry/battery` | Colour-coded: green / amber / red |
+| BROKER status | Internal | Live dot — Moquette running on phone |
+| MQTT status | Internal | Live dot — ESP32 connected to broker |
 
-**Mode 1 — WASD (default):**
-- W / A / S / D buttons + central STOP button
-- Hold to move, release sends `stop`
-- Speed slider sets PWM value (0–255)
+### App UI
 
-**Mode 2 — Accelerometer:**
-- Phone tilt maps to direction commands
-- **Dynamic speed control** — linear ramp from 80 to 255 as tilt increases, smooth no jumping
-- Speed slider updates in real time as you tilt
-- `SensorManager` listener registered only when this mode is active — saves battery
-- **Forward triggers earlier** than left/right (offset 0.6) for natural feel
-- **Reverse guard** prevents accidental reverse — requires significantly more tilt, adjustable up to disabled
-
-**Tilt axis behaviour:**
-
-| Axis | Trigger threshold |
-|------|------------------|
-| Forward | sensitivity - 0.6 (triggers earlier) |
-| Left / Right | sensitivity |
-| Back (reverse) | sensitivity + reverseGuard |
-
-**In-app tilt sensitivity panel (collapsible, visible in tilt mode only):**
-
-| Slider | Effect |
-|--------|--------|
-| SENSITIVITY | Controls trigger threshold for all axes |
-| REVERSE GUARD | Extra tilt needed to trigger reverse — slide to max (10) to disable reverse entirely |
-
-A single **MODE** button toggles between them. The button label updates to show the active mode.
-
-#### TelemetryFragment
-Subscribes to all `robot/telemetry/#` topics and displays:
-- IR sensor indicators (3 circles, filled = line detected)
-- Ultrasonic distance readouts (Left / Center / Right in cm)
-- Battery voltage bar + voltage text
-- Motor speed (PWM A and B)
-- MQTT connection status indicator
-
----
+![App UI](app_front.png)
 
 ### Dependencies
 
 ```kotlin
-// build.gradle (app)
-
 // MQTT Broker — Moquette embedded
 implementation("io.moquette:moquette-broker:0.17")
 
@@ -763,316 +827,200 @@ implementation("io.moquette:moquette-broker:0.17")
 implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
 implementation("org.eclipse.paho:org.eclipse.paho.android.service:1.1.1")
 
-// Coroutines — async broker start
+// Coroutines — async broker startup
 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 ```
 
 ---
 
-### ESP32 Firmware — Connection Side
+## First Run & WiFi Provisioning
 
-Credentials (SSID, password, broker IP) are loaded from NVS after BLE provisioning. WiFi and MQTT are fully event-driven — no polling loop.
+WiFi credentials and the MQTT broker IP are not hardcoded in firmware. On first boot, the ESP32 advertises over BLE and waits for provisioning.
 
-```c
-// mqtt.c — simplified
-void mqtt_init(void) {
-    // WiFi STA connect using NVS credentials
-    esp_wifi_connect();
-    xEventGroupWaitBits(s_events, WIFI_CONNECTED_BIT, ...);
+**BLE service details:**
 
-    // Build broker URI from NVS broker IP
-    char uri[80];
-    snprintf(uri, sizeof(uri), "mqtt://%s:%d", provisioning_get_broker(), 1883);
+```
+Device name:    IoT-Robot
+Service UUID:   4fafc201-1fb5-459e-8fcc-c5c9c331914b
+Characteristic: beb5483e-36e1-4688-b7f5-ea07361b26a8  (WRITE + NOTIFY)
 
-    esp_mqtt_client_config_t mcfg = { .broker.address.uri = uri };
-    s_client = esp_mqtt_client_init(&mcfg);
-    esp_mqtt_client_register_event(s_client, ESP_EVENT_ANY_ID, mqtt_handler, NULL);
-    esp_mqtt_client_start(s_client);
-}
-
-// mqtt_handler — MQTT_EVENT_CONNECTED
-esp_mqtt_client_subscribe(s_client, "robot/control/move",  0);
-esp_mqtt_client_subscribe(s_client, "robot/control/mode",  0);
-esp_mqtt_client_subscribe(s_client, "robot/control/speed", 0);
-
-// mqtt_handler — MQTT_EVENT_DATA
-if      (strcmp(topic, TOPIC_MOVE)  == 0) state_machine_set_move(msg);
-else if (strcmp(topic, TOPIC_MODE)  == 0) state_machine_set_mode(...);
-else if (strcmp(topic, TOPIC_SPEED) == 0) state_machine_set_speed(atoi(msg));
+Write payload:  {"ssid":"YourWiFi","password":"YourPass","broker":"192.168.x.x"}
+Reply (notify): "OK"  — credentials saved, ESP32 restarts into WiFi mode
+                "ERR" — malformed JSON, try again
 ```
 
+**Boot behaviour:**
+
+| Condition | What happens |
+|-----------|-------------|
+| No credentials in NVS (first boot) | BLE advertises indefinitely until credentials are received |
+| Credentials present, normal boot | BLE advertises for 30 s (re-provision window), then stops and connects to WiFi |
+| Boot immediately after provisioning | BLE skipped entirely (`fresh` NVS flag set), goes straight to WiFi |
+
+**Provisioning steps:**
+
+1. Power on the robot — the ESP32 advertises as `IoT-Robot`
+2. Open the Android app and tap **BLE PROVISIONING**
+3. The app auto-detects the broker IP from the phone's WiFi interface — only the WiFi SSID and password need to be typed in manually
+4. Tap **PROVISION** — the app writes the JSON credentials over BLE
+5. The ESP32 replies with "OK" and restarts
+6. After restarting, the ESP32 connects to WiFi then to the MQTT broker running on the phone
+7. The app status bar shows **BROKER OK** and **MQTT** connected
+
+**Re-provisioning:** Power on the robot and connect via BLE within 30 seconds of boot.
+
+**Full reset:** Erase NVS to force a first-boot state:
+```bash
+esptool.py --chip esp32 -p /dev/ttyUSB0 erase_flash
+```
+Then reflash the firmware.
+
 ---
 
-### UI Layout
+## Control Modes
 
-![App UI](app_front.png)
+The app has two independent mode axes that can be combined freely.
+
+### Drive Source — WASD or Tilt
+
+Toggled by the **TILT/WASD** button. The accelerometer listener is registered and unregistered on each toggle to preserve battery.
+
+**WASD mode (default):**
+
+```
+      [ W ]
+ [ A ][ S ][ D ]
+      [STP]
+```
+
+Hold a button to move; releasing it sends `stop`. The speed slider sets the PWM value (0–255).
+
+**Tilt mode (accelerometer):**
+
+| Tilt direction | Action |
+|---------------|--------|
+| Forward | Move forward |
+| Backward | Reverse |
+| Left | Steer left |
+| Right | Steer right |
+| Flat | Stop |
+
+Tilt speed is dynamic — a linear ramp from 80 to 255 as tilt angle increases. The speed slider updates in real time.
+
+| Axis | Trigger threshold |
+|------|------------------|
+| Forward | `sensitivity − 0.6` (triggers slightly earlier for natural feel) |
+| Left / Right | `sensitivity` |
+| Reverse | `sensitivity + reverseGuard` |
+
+A collapsible sensitivity panel (visible in tilt mode only) exposes two sliders:
+
+| Slider | Effect |
+|--------|--------|
+| SENSITIVITY | Controls the trigger threshold for all axes |
+| REVERSE GUARD | Extra tilt required to trigger reverse. Set to maximum (10) to disable reverse entirely |
+
+### Autonomy — AUTO/MAN
+
+Toggled by the **AUTO/MAN** button in the status bar.
+
+- **MAN** — manual control via WASD or tilt. App publishes `manual` to `robot/control/mode`.
+- **AUTO** — autonomous line-follow mode. App publishes `line_follow` to `robot/control/mode`. The control pad shows an "AUTO MODE" overlay and ignores all touch input. The ESP32 runs its state machine. The speed slider remains active — the firmware applies the current MQTT speed value in autonomous mode as well.
 
 ---
 
-### Build Log — App
+## Known Issues
+
+| Priority | Issue | Status |
+|----------|-------|--------|
+| Critical | LM2596 trimpot-only FB risk — if the RV1 wiper fails open, the full battery voltage reaches the 5V rail and destroys the ESP32. Fix: add R_upper 1 kΩ (VOUT→FB) + R_lower 1 kΩ (FB→GND) with RV1 in series with R_lower as a failsafe floor | Next PCB revision |
+| Warning | Low-ESR capacitor recommended on LM2596 220 µF output capacitor | To verify |
+| Info | ECHO Right on GPIO2 — the onboard LED flashes in sync with right ultrasonic echoes. GPIO2 cannot be changed without a PCB revision. The sensor reads correctly; the flashing is cosmetic only. | Accepted |
+| OK | L298N Schottky freewheeling diodes — repurposed from module, correct type and polarity | Done |
+| OK | LM2596 D1 = SS34 Schottky | Done |
+| OK | HC-SR04 2021+ — ECHO direct to ESP32 GPIO, no voltage divider | Done |
+| OK | All IR GPIOs on ADC1 — WiFi and MQTT remain active during sensor reads | Done |
+| OK | No strapping pin conflicts in final pinout | Done |
+| OK | D34 battery ADC — ADC1, input-only GPIO, WiFi safe | Done |
+| OK | J3: Pin 1 = GND, Pin 2 = battery positive (8.4V) | Done |
+| OK | ESP32-DEVKITC V1 has onboard 100 nF decoupling — no external cap needed | Done |
+| OK | GPIO36/GPIO39 do not exist on DEVKITC V1 — replaced with D19 and D2 | Done |
+| OK | BLE invisible after first provisioning — fixed with 30 s re-provision window + `fresh` NVS flag | Done |
+| OK | BLE and WiFi radio conflict — NimBLE kept alive and competed with WiFi — fixed with `stop_nimble()` clean handoff before WiFi init | Done |
+| OK | OLED I2C blocking serial (720 ms/update) when no OLED connected — fixed with `i2c_master_probe()` presence check at init | Done |
+| OK | Android broker IP returning cellular IP on dual-SIM phones — fixed by filtering `allNetworks` for WiFi transport only | Done |
+| OK | Moquette failing silently (`catch Exception` missed Netty errors) — fixed with `catch Throwable` + `data_path = filesDir.absolutePath` | Done |
+| OK | ESP32 ignoring the speed slider — added `robot/control/speed` subscription + `state_machine_set_speed()` | Done |
+| OK | Motor A (left) IN1/IN2 wired backwards on PCB — corrected in `drive()` by inverting PIN_IN1/PIN_IN2 polarity for Motor A only | Done |
+| OK | WASD fast-tap locks direction (`collectIsPressedAsState` missed short presses) — replaced with `pointerInput` + `awaitEachGesture` / `awaitFirstDown` / `waitForUpOrCancellation` | Done |
+| OK | No AUTO/MAN mode toggle in app — AUTO/MAN button added to StatusBar; sends `line_follow` / `manual` to `robot/control/mode` | Done |
+| OK | Autonomous speed ignored MQTT speed commands — all `m_*` motor helpers now scale from `s_speed` instead of hardcoded constants | Done |
+| OK | Battery reading ~13V (wrong VREF, no calibration) — replaced with `adc_cali_line_fitting` + 8-sample averaging; fallback uses correct 3100 mV full-scale | Done |
+| Warning | Battery divider 2×100 kΩ (1:1) saturates ADC above ~6.2V — a healthy 2S pack reads fixed at ~6.2V; only drops below when the pack is nearly dead. App thresholds set to 6.0V / 5.5V. | Hardware limitation — acceptable |
+| OK | OLED I2C timeouts at 400 kHz — SCL reduced to 100 kHz, timeout extended to 50 ms; error counter: bus reset on 5th consecutive fail, auto-disable on 20th | Done |
+| OK | Ultrasonic always reading 400 cm (polling loop missed short echo pulses < ~170 cm) — replaced with interrupt-driven ISR (`GPIO_INTR_ANYEDGE`) recording µs-precision timestamps | Done |
+
+---
+
+## Build Log
 
 | Date | Entry |
 |------|-------|
-| 27 Apr 2026 | Android app architecture fully planned. Kotlin, API 29+, game controller UI, Moquette embedded broker, Eclipse Paho client. |
-| 27 Apr 2026 | App built and running. WASD + tilt mode, telemetry panel, speed slider, connection status. |
-| 27 Apr 2026 | Dynamic tilt speed control added — tilt angle controls speed dial automatically in accelerometer mode. |
-| 27 Apr 2026 | Tilt controls improved: linear speed ramp, forward triggers earlier than sides, reverse guard prevents accidental reverse. |
-| 27 Apr 2026 | Tilt sensitivity panel added — 2 sliders (SENSITIVITY + REVERSE GUARD), collapsible, only visible in tilt mode. |
-| 27 Apr 2026 | Reverse guard range extended to 10 — at max value reverse is effectively disabled. |
-| 27 Apr 2026 | Full screen made scrollable — telemetry always visible regardless of sensitivity panel state. |
-
----
-
-## Chassis — 3D Printed
-
-The robot chassis is designed in **Autodesk Inventor** and 3D printed. The STEP file is included in the repo for reference and assembly.
-
-📁 **STEP file located in the root of this repo.**
-
-![Chassis Assembly](assembly1.PNG)
-
-*Autodesk Inventor assembly — PCB mounted on standoffs, motor mounts, battery compartment and sensor positions.*
-
-### Design Notes
-
-- Designed to fit the custom PCB, 2S 18650 battery pack and all sensor mounts
-- IR sensors mounted on the underside facing the ground for line detection
-- HC-SR04 ultrasonic sensors mounted on the front (left, center, right)
-- Motor mounts integrated into the chassis base
-- PCB sits on standoffs with M4 mounting holes matching the PCB corner holes
-- Battery compartment accessible from the bottom
-
-### Build Log — Chassis
-
-| Date | Entry |
-|------|-------|
-| 27 Apr 2026 | Chassis design started in Autodesk Inventor. STEP file uploaded to GitHub repo. |
+| 24 Apr 2026 | Rev 1 schematic complete. ESP32 + LM2596S-ADJ + L298N architecture established. |
+| 24 Apr 2026 | EnA strapping conflict on D12 found and corrected → D21. |
+| 24 Apr 2026 | R1/R2 confirmed as battery ADC voltage divider, not LM2596 feedback resistors. |
+| 24 Apr 2026 | L298N repurposed from breakout module — correct Schottky freewheeling diodes confirmed. |
+| 24 Apr 2026 | Android MQTT app architecture defined — embedded broker, dual control modes, telemetry dashboard. |
+| 25 Apr 2026 | JST-A (ultrasonic) and JST-B (IR) connectors added to schematic and PCB. |
+| 25 Apr 2026 | Full GPIO conflict check — all pins verified clean. |
+| 25 Apr 2026 | HC-SR04 confirmed 2021+ version — voltage dividers removed from design. |
+| 25 Apr 2026 | Final GPIO assignments locked in. LM2596 D1 = SS34 Schottky confirmed. |
+| 25 Apr 2026 | Schematic Rev 2 exported — JST-A and JST-B fully connected. |
+| 27 Apr 2026 | PCB design completed. L298N diode orientation corrected — all 8 diodes consistent anode/cathode orientation. |
+| 27 Apr 2026 | Incorrect ESP32 footprint (WROOM-32D) found and replaced → ESP32-DEV DEVKITC V1. Custom footprints uploaded to `/footprints`. |
+| 27 Apr 2026 | All pin numbers updated to DEVKITC V1 layout. GPIO36/39 replaced with D19/D2. 16 GPIOs used, 0 conflicts, 9 spare. |
+| 27 Apr 2026 | DRC run — 3 silkscreen warnings fixed. 0 footprint errors. |
+| 27 Apr 2026 | JST connector found placed upside down — fixed by flipping in KiCad PCB editor. |
+| 27 Apr 2026 | Mounting hole references changed from numeric (1,2,3,4) to H1–H4 to resolve FreeRouter SES import error. |
+| 27 Apr 2026 | FreeRouter auto-routing completed with 0 unrouted connections. Power netclass: 0.8 mm trace, 0.7 mm clearance. Signal: 0.25 mm trace, 0.2 mm clearance. |
+| 27 Apr 2026 | SES imported into KiCad. All 28 DRC violations fixed: decorative text moved to F.Silkscreen, power clearance reduced to 0.5 mm to match IC pad spacing, 3 dangling stubs deleted. |
+| 27 Apr 2026 | PCB routing complete. Final DRC: 0 errors, 2 warnings (mounting hole library mismatch — ignorable). Board is production-ready. |
+| 27 Apr 2026 | GitHub URL added to PCB silkscreen. Gerber files exported and uploaded to `/gerber`. |
+| 27 Apr 2026 | Power source confirmed: custom 2S 18650 pack (8.4V fully charged), charged via Hailege 2S USB-C BMS boost charger. |
+| 27 Apr 2026 | Android app built and running. WASD + tilt mode, telemetry panel, speed slider. Dynamic tilt speed ramp, reverse guard, collapsible sensitivity panel added. |
+| 27 Apr 2026 | Chassis design started in Autodesk Inventor. STEP file uploaded to repo. |
+| 29 Apr 2026 | OLED board designed in KiCad — 128×32 SSD1306 I2C, separate PCB for mounting on chassis top. Connects via JST-B spare pins 7–10. ECHO Right moved D4 → D2; D4 and D5 assigned to OLED SDA/SCL. Gerbers added. |
 | 29 Apr 2026 | Chassis assembly rendered in Autodesk Inventor. Assembly image added to repo. |
-| 4 May 2026 | Chassis design finalised — all mounting hole positions verified against PCB corner holes (M4, 4 corners). Motor mount spacing confirmed against motor dimensions. |
-| 8 May 2026 | Chassis sent to 3D printer. PLA, 0.2mm layer height, 20% infill for non-structural sections, 50% infill for motor mounts and standoff pillars. |
-
----
-
-## ESP32 Firmware
-
-### Overview
-
-The ESP32 firmware handles all real-time robot logic: motor control, sensor reading, line following, object avoidance, MQTT communication and state management. It is written in **Arduino C++ (PlatformIO or Arduino IDE)**.
-
----
-
-### Motor Wiring — Differential Drive
-
-The robot uses **2 motor pairs** in a differential drive configuration:
-
-| Side | L298N Channel | Direction Pins | Enable (PWM) |
-|------|--------------|---------------|--------------|
-| Motor A (Left pair) | Channel A | IN1 (D13), IN2 (D14) | EnA (D21) |
-| Motor B (Right pair) | Channel B | IN3 (D27), IN4 (D26) | EnB (D25) |
-
-Steering is achieved by varying the relative speed of left vs right motors:
-
-| Action | Left Motors | Right Motors |
-|--------|------------|--------------|
-| Forward | Full speed | Full speed |
-| Turn Left | Reduced speed | Full speed |
-| Turn Right | Full speed | Reduced speed |
-| Hard Left | Stop | Full speed |
-| Hard Right | Full speed | Stop |
-| Reverse | Full speed back | Full speed back |
-| Spin Left | Full back | Full forward |
-| Spin Right | Full forward | Full back |
-
----
-
-### Line Following Logic
-
-3 IR sensors (left, center, right) provide 8 possible states:
-
-| IR Left | IR Center | IR Right | Action |
-|---------|-----------|---------|--------|
-| 0 | 1 | 0 | Forward — centered on line |
-| 0 | 1 | 1 | Curve right gently |
-| 1 | 1 | 0 | Curve left gently |
-| 0 | 0 | 1 | Turn right hard |
-| 1 | 0 | 0 | Turn left hard |
-| 1 | 1 | 1 | All sensors on line — forward |
-| 1 | 0 | 1 | Junction or crossing — forward |
-| 0 | 0 | 0 | **Line lost** → enter RECOVERING state |
-
----
-
-### Object Avoidance Logic
-
-3 HC-SR04 sensors (left, center, right) provide distances in cm:
-
-```
-IF center < 20cm:
-    remember avoidance direction (left if left > right, else right)
-    enter AVOIDING state — curve around obstacle
-    track last visible line corner with outer sensor
-
-IF left < 15cm:
-    curve right
-
-IF right < 15cm:
-    curve left
-
-IF all three < 15cm:
-    stop → reverse 500ms → spin away from obstacle
-```
-
----
-
-### State Machine
-
-The firmware runs a 3-state machine:
-
-```
-         ┌──────────────┐
-    ┌───▶│  FOLLOWING   │◀────────────┐
-    │    └──────┬───────┘             │
-    │           │ obstacle < 20cm     │ line found
-    │           ▼                     │
-    │    ┌──────────────┐             │
-    │    │   AVOIDING   │             │
-    │    └──────┬───────┘             │
-    │           │ line lost (0,0,0)   │ line found
-    │           ▼                     │
-    │    ┌──────────────┐             │
-    └────│  RECOVERING  │─────────────┘
-         └──────────────┘
-             │ no line after 5s
-             ▼
-           STOP and wait
-```
-
-**FOLLOWING** — normal line tracking using IR sensor table above.
-
-**AVOIDING** — obstacle detected. Robot curves around it while keeping the last active IR sensor (the outer edge of the line) active as long as possible. Tracks the corner of the line to re-join after obstacle is cleared.
-
-**RECOVERING** — all IR sensors lost the line (0,0,0):
-1. Remember last known direction (which side sensor was last active)
-2. Slow speed, turn that direction for up to 2 seconds
-3. If line found → back to FOLLOWING
-4. If not found after 2s → slow spin scanning full circle
-5. If still not found → stop and wait for manual override via MQTT
-
----
-
-### MQTT Integration
-
-The ESP32 subscribes to `robot/control/#` and publishes to `robot/telemetry/#`:
-
-```cpp
-// Subscribe
-client.subscribe("robot/control/move");   // manual override
-client.subscribe("robot/control/speed");  // manual speed
-client.subscribe("robot/control/mode");   // "manual" or "line_follow"
-
-// Publish every ~100ms
-client.publish("robot/telemetry/ir",         irJson());
-client.publish("robot/telemetry/ultrasonic", ultrasonicJson());
-client.publish("robot/telemetry/battery",    batteryVoltage());
-client.publish("robot/telemetry/speed",      speedJson());
-```
-
-In `line_follow` mode the ESP32 ignores incoming move commands and runs the state machine autonomously. In `manual` mode the state machine is bypassed and MQTT move commands drive the motors directly.
-
----
-
-### Firmware Structure
-
-```cpp
-// Main files
-main.cpp          — setup(), loop(), state machine
-motors.h/.cpp     — setMotors(), forward(), turnLeft() etc.
-sensors.h/.cpp    — readIR(), readUltrasonic(), readBattery()
-mqtt.h/.cpp       — connect(), publish(), callback()
-config.h          — pin definitions, thresholds, constants
-```
-
----
-
-### Pin Definitions (config.h)
-
-```cpp
-// Motors
-#define IN1  13
-#define IN2  14
-#define ENA  21
-#define IN3  27
-#define IN4  26
-#define ENB  25
-
-// IR Sensors
-#define IR_LEFT   32
-#define IR_CENTER 33
-#define IR_RIGHT  15
-
-// Ultrasonic
-#define TRIG_LEFT   22
-#define ECHO_LEFT   35
-#define TRIG_CENTER 23
-#define ECHO_CENTER 19
-#define TRIG_RIGHT  18
-#define ECHO_RIGHT   2
-
-// OLED I2C
-#define OLED_SDA     4
-#define OLED_SCL     5
-
-// Battery ADC
-#define BATTERY_PIN 34
-
-// Thresholds
-#define OBSTACLE_WARN_CM  20
-#define OBSTACLE_STOP_CM  12
-#define RECOVERY_SWEEP_MS 2000  // sweep last-known direction before spinning
-#define RECOVERY_SPIN_MS  5000  // spin timeout before giving up
-#define AVOID_MIN_MS      500   // minimum time in AVOIDING before re-checking
-#define BASE_SPEED        180
-#define SPEED_TURN        120
-#define SPEED_SLOW        80
-#define SPEED_REVERSE     150
-```
-
----
-
-### BLE Provisioning
-
-WiFi SSID/password and MQTT broker IP are **not hardcoded**. On first boot, the ESP32 starts a BLE service and blocks until an Android app sends credentials as JSON over BLE2902. Credentials are stored in NVS (non-volatile storage) and persist across reboots, so provisioning only runs once unless NVS is cleared.
-
-- Service UUID: `4fafc201-1fb5-459e-8fcc-c5c9c331914b`
-- Characteristic UUID: `beb5483e-36e1-4688-b7f5-ea07361b26a8`
-- Payload: `{"ssid":"...","password":"...","broker":"192.168.x.x"}`
-
----
-
-### Build Log — Firmware
-
-| Date | Entry |
-|------|-------|
-| 27 Apr 2026 | Firmware architecture planned. Differential drive, 3-state machine (FOLLOWING / AVOIDING / RECOVERING), MQTT integration. |
-| 3 May 2026 | Project scaffolded in firmware/. All module headers created with clean public APIs. config.h written with all pin definitions, thresholds, and speed constants. |
-| 4 May 2026 | motors.cpp — L298N PWM via ledcSetup/ledcWrite, full high-level command set (forward, reverse, spinLeft, spinRight, curveLeft, curveRight, hardLeft, hardRight). |
-| 4 May 2026 | sensors.cpp — IR reading with 2-read debounce, non-blocking ultrasonic using round-robin rotation (one sensor per loop cycle), battery ADC with R1/R2 voltage divider formula. |
-| 6 May 2026 | state_machine.cpp — 4-state machine implemented. FOLLOWING uses full 8-case IR truth table. AVOIDING curves around obstacle using left/right distance comparison. RECOVERING sweeps last-known direction then spins. |
-| 6 May 2026 | mqtt_client.cpp — WiFi connect, PubSubClient subscribe to robot/control/#, callback dispatches to setManualMove/setSpeed/setMode. Publishes IR/ultrasonic/battery/speed JSON every 100ms. |
-| 7 May 2026 | provisioning.cpp — BLE service with PROV_SERVICE_UUID and PROV_CHAR_UUID. JSON payload parsed with ArduinoJson, credentials stored in NVS Preferences. Startup blocks until credentialsReady. |
-| 7 May 2026 | oled.cpp — 128x32 SSD1306 over remapped I2C (SDA=D4, SCL=D5). Shows battery voltage, MQTT status, and mode/state string. Updates every 500ms non-blocking. |
-| 8 May 2026 | main.cpp — setup/loop wired. provisioningInit() blocks before mqttInit(). Loop reads sensors → stateMachineUpdate → publishes telemetry + updates OLED every 100ms. All modules integrated and compiling. |
-| 10 May 2026 | CLAUDE.md created. README corrected: OLED features, constants, BLE provisioning documented. |
-| 11 May 2026 | Refactor: dead code removed (`getCurrentSpeedLeft/Right`, `TOPIC_SPEED`, `TOPIC_SPEED_FB`, `provisioningReady`). `BLE2902` removed from WRITE char. Motor PWM updated to ESP32 Core 3.x `ledcAttach` API. Comment blocks stripped across all modules. |
-| 11 May 2026 | **Full migration from Arduino to ESP-IDF v5.x.** All `.cpp` files replaced with clean `.c` files. Arduino framework, PubSubClient, ArduinoJson, and Adafruit SSD1306 removed. Motors merged into `state_machine.c`. BLE: NimBLE. MQTT: esp-mqtt event-driven. ADC: adc_oneshot. PWM: LEDC. I2C: new master API with raw SSD1306 + 5×7 built-in font. Provisioning char: WRITE+NOTIFY. |
-| 12 May 2026 | Android provisioning screen: broker IP auto-detected from phone's WiFi interface. WiFi-specific network filter prevents cellular IP on dual-SIM phones. Broker field read-only with AUTO-DETECTED badge. |
-| 12 May 2026 | HOW_TO_BUILD_AND_FLASH.txt: added Ubuntu terminal open instructions, corrected erase flash step (renumbered as Step 3). |
-| 13 May 2026 | BLE provisioning redesigned — 30-second re-provision window on every boot. `NVS_KEY_FRESH` flag skips BLE on boot immediately after provisioning. `s_ble_stopping` guard prevents re-advertising during shutdown. Notification delay before restart increased to 1500ms. |
-| 13 May 2026 | Clean BLE→WiFi radio handoff: `stop_nimble()` (adv stop → port stop → 300ms → deinit) called before WiFi init. Removed `ble_reprov_watch_task`. |
-| 13 May 2026 | OLED graceful no-hardware handling: `i2c_master_probe()` presence check at init, `s_present` guard in `oled_update()`. Eliminates 720ms I2C blocking per update when no OLED connected. |
-| 14 May 2026 | Android manifest: added `FOREGROUND_SERVICE_CONNECTED_DEVICE` permission (required for Android 14+ foreground service with connectedDevice type). |
-| 14 May 2026 | Android `MainActivity`: replaced fixed 1500ms delay with `MqttBrokerService.isRunning` poll — Paho connects only after Moquette has bound to port 1883. |
-| 15 May 2026 | Moquette startup failure: `catch (Exception)` → `catch (Throwable)` so Netty errors surface in logcat. Root cause: H2 store path defaulting to `/data/` (permission denied). Fixed with `data_path = filesDir.absolutePath`. |
-| 15 May 2026 | Android StatusBar: broker status indicator added — BROKER OK / BROKER DOWN dot reads `MqttBrokerService.isRunning` as live Compose state. |
-| 15 May 2026 | End-to-end MQTT verified working: ESP32 connects to Moquette on phone, move/mode/speed commands received, telemetry published. |
-| 15 May 2026 | Speed control wired end-to-end: `TOPIC_SPEED` added to `config.h`, subscribed in `mqtt_init()`. `state_machine_set_speed()` added. `run_manual()` uses dynamic `s_speed` (turns = 2/3 of speed). Logging added to `set_move()` and `set_speed()`. |
+| 30 Apr 2026 | Final gerber review — main PCB and OLED board gerbers cross-checked. All layers verified (F.Cu, B.Cu, F.Silkscreen, B.Silkscreen, F.Mask, B.Mask, Edge.Cuts, drill). |
+| 2 May 2026 | Main PCB and OLED board ordered from JLCPCB. 2-layer, HASL finish, 5 copies each. |
+| 3 May 2026 | Firmware development started. All module headers defined: provisioning, sensors, state_machine, mqtt, oled. |
+| 4 May 2026 | Chassis design finalised — mounting hole positions and motor mount spacing verified. |
+| 4 May 2026 | sensors.c: IR reading with 2-read debounce, round-robin ultrasonic (non-blocking), battery ADC with voltage divider formula. state_machine.c skeleton. |
+| 6 May 2026 | state_machine.c — 3-state machine (FOLLOWING / AVOIDING / RECOVERING) implemented. mqtt.c — WiFi connect, esp-mqtt event-driven client, telemetry JSON at 100 ms. |
+| 7 May 2026 | provisioning.c — NimBLE GATT service, JSON credentials written to NVS. oled.c — SSD1306 raw driver, 5×7 font, battery + MQTT + mode/state display. |
+| 8 May 2026 | main.c complete — all modules wired together and compiling. Chassis sent to 3D printer (PLA, 0.2 mm layer height, 20 % / 50 % infill). |
+| 10 May 2026 | CLAUDE.md created. README audited and updated: OLED features, BLE provisioning section, constants. |
+| 10 May 2026 | Auto-changelog hook configured in Claude Code — build log updated automatically after each code change. |
+| 11 May 2026 | Full migration from Arduino to ESP-IDF v5.x. All .cpp files replaced with .c. Arduino framework, PubSubClient, ArduinoJson, and Adafruit SSD1306 removed. NimBLE replaces Bluedroid. esp-mqtt replaces PubSubClient. adc_oneshot API replaces legacy ADC. LEDC replaces ledcSetup/ledcWrite. I2C legacy driver with raw SSD1306 init sequence and 5×7 font inline. Motors merged into state_machine.c. Provisioning char upgraded to WRITE+NOTIFY. |
+| 12 May 2026 | Android provisioning screen: broker IP auto-detected from phone's WiFi interface. WiFi network filter prevents cellular IP being selected on dual-SIM phones. Broker field is read-only with AUTO-DETECTED badge. |
+| 12 May 2026 | HOW_TO_BUILD_AND_FLASH.txt updated: Ubuntu terminal open instructions, erase flash step corrected. |
+| 13 May 2026 | BLE redesigned: 30 s re-provision window on every boot. `NVS_KEY_FRESH` flag skips BLE on boot immediately after provisioning. `stop_nimble()` (adv stop → port stop → 300 ms → deinit) called before WiFi init for clean radio handoff. |
+| 13 May 2026 | OLED graceful no-hardware handling: `i2c_master_probe()` presence check at init. `s_present` guard in `oled_update()` eliminates 720 ms I2C blocking per loop when no OLED is connected. |
+| 14 May 2026 | Android manifest: `FOREGROUND_SERVICE_CONNECTED_DEVICE` permission added — required for Android 14+ foreground service. |
+| 14 May 2026 | Android `MainActivity`: fixed 1500 ms startup delay replaced with `MqttBrokerService.isRunning` poll — Paho connects only after Moquette has bound to port 1883. |
+| 15 May 2026 | Moquette: `catch (Exception)` → `catch (Throwable)` so Netty startup errors surface in logcat. Root cause: H2 store path defaulting to `/data/` (permission denied). Fixed with `data_path = filesDir.absolutePath`. |
+| 15 May 2026 | Android StatusBar: BROKER OK / BROKER DOWN indicator added as live Compose state. |
+| 15 May 2026 | End-to-end MQTT verified: ESP32 connects to Moquette on phone, move / mode / speed commands received, telemetry published correctly. |
+| 15 May 2026 | Speed control wired end-to-end: `TOPIC_SPEED` subscribed in `mqtt_init()`, `state_machine_set_speed()` added. `run_manual()` uses dynamic `s_speed` (turns use 2/3 of speed). |
+| 19 May 2026 | PCBs arrived from JLCPCB. Buck converter circuit assembled (LM2596, diode, inductor, capacitors, trimpot, divider resistors). Output set to 5.0V and verified with multimeter. Battery ADC divider midpoint confirmed at ~4.2V. |
+| 22 May 2026 | Remaining components soldered: ESP32, L298N, JST connectors, screw terminals. BLE provisioning functional — minor bugs noted: MQTT status indicator fires too early (shows connected before ESP32 reaches broker), GPIO watchdog trigger on sensor GPIOs. |
+| 26 May 2026 | Motor driver tested — both channels functional. Mechanical on/off switch added to the battery line. |
+| 28 May 2026 | Manual drive mode fully working. IR sensor data arriving in app correctly. Ultrasonic sensors under investigation (reading 400 cm). |
+| 2 Jun 2026 | Motor A direction fixed — IN1/IN2 are wired backwards on the PCB hardware; corrected in `drive()` by inverting PIN_IN1/PIN_IN2 polarity for Motor A only. All move commands now correct. |
+| 2 Jun 2026 | AUTO/MAN toggle added to app StatusBar. Sends `line_follow` / `manual` to `robot/control/mode`. D-pad shows overlay and ignores input when AUTO is active. |
+| 2 Jun 2026 | WASD fast-tap fix — `collectIsPressedAsState` + `LaunchedEffect` replaced with `pointerInput` + `awaitEachGesture`. Fast taps now correctly send move on press and stop on release. |
+| 2 Jun 2026 | Autonomous speed respects MQTT speed — all `m_*` motor helpers (forward, spin, curve, hard-turn) now scale from `s_speed`. Speed slider affects auto mode. |
+| 2 Jun 2026 | Battery ADC calibration: `adc_cali_line_fitting` scheme added, 8-sample averaging, fallback uses 3100 mV full-scale (was 3300 mV). App thresholds updated to 6.0V / 5.5V to account for the 6.2V ADC saturation ceiling. |
+| 2 Jun 2026 | OLED I2C stability: SCL reduced from 400 kHz to 100 kHz, timeout extended from 10 ms to 50 ms. Error counter: `i2c_master_bus_reset` on 5th consecutive fail, `s_present = false` on 20th (permanently stops updates if OLED disconnects). |
+| 2 Jun 2026 | Ultrasonic sensors fixed: polling state machine replaced with interrupt-driven ISR (`GPIO_INTR_ANYEDGE`). Rising edge stores timestamp, falling edge computes `pulse_us / 58` cm. All three sensors now read correctly at all distances. |
+| 2 Jun 2026 | ECHO Right confirmed on GPIO2 with ISR. GPIO36/39 were tried and rejected due to ESP32 WiFi/RTC errata causing spurious ISR triggers. Onboard LED flashing with echoes is cosmetic — accepted. |
