@@ -231,7 +231,7 @@ Solder only the following components. Leave everything else unpopulated.
 Do **not** solder: ESP32, L298N, JST-A, JST-B, J1/J2 screw terminals, or any sensors yet.
 
 ### Step 3 — Set the Buck Converter Output to 5V
-
+![Setting Buck to 5V](buck_test.jpeg)
 This is the most critical step. The LM2596S-ADJ output voltage is set by RV1. If left at the wrong position it may output the full battery voltage (up to 8.4V) to the 5V rail, which will destroy the ESP32.
 
 1. Connect the 2S 18650 battery pack to J3 (Pin 1 = GND, Pin 2 = battery positive)
@@ -243,13 +243,8 @@ This is the most critical step. The LM2596S-ADJ output voltage is set by RV1. If
 
 ### Step 4 — Verify the Battery ADC Divider
 
-While the battery was connected in Step 3, or reconnect briefly now:
 
-- Measure the voltage at the midpoint of R1 and R2 (the trace going to D34)
-- With a fully charged 8.4V battery, you should read approximately **4.2V** (1:1 divider, 100 kΩ / 100 kΩ)
-- This confirms the voltage divider is correctly wired before the ESP32 is installed
-
-> The firmware ADC saturates when the divider midpoint exceeds ~3.1V, which corresponds to a battery voltage of ~6.2V. This is a hardware limitation — the battery reading shows ~6.2V on a healthy 2S pack and only starts falling below 6.2V when the pack is nearly depleted. The app thresholds are set at 6.0V / 5.5V to account for this.
+> The firmware ADC saturates when the divider midpoint exceeds ~3.1V, which corresponds to a battery voltage of ~6.2V. This is a hardware limitation — the battery reading shows ~6.2V on a healthy 2S pack and only starts falling below 6.2V when the pack is nearly depleted. The app thresholds are set at 6.0V / 5.5V to account for this. This can be fixed in software with some calculations.
 
 ### Step 5 — Solder Remaining Components
 
@@ -272,7 +267,7 @@ Solder the OLED daughter board separately — it is a standalone PCB.
 3. Connect the ESP32 to a PC via USB
 4. Open a serial monitor at **115200 baud**
 5. You should see BLE provisioning log output: `I (xxx) PROV: advertising as "IoT-Robot"`
-
+![PCB Mounted, still needs screwing down](pcb_inside.jpeg)
 If nothing appears on the serial monitor:
 - Check battery polarity on J3
 - Re-measure the 5V rail — must be 5V, not higher
